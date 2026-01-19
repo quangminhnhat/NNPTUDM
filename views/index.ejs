@@ -1,0 +1,452 @@
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trang Chủ</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/mobile.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://demos.creative-tim.com/notus-js/assets/styles/tailwind.css">
+  <!-- link swiper-->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+  <link rel="stylesheet"
+    href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
+</head>
+
+<body>
+  <%- include('../views/shared/header.ejs') %>
+
+  
+    <!-- Slideshow container -->
+    <div class="slideshow-container">
+
+      <!-- Full-width images with number and caption text -->
+      <div class="mySlides fade">
+        <div class="numbertext">1 / 5</div>
+        <img src="/images/slide1.jpg">
+        
+      </div>
+
+      <div class="mySlides fade">
+        <div class="numbertext">2 / 5</div>
+        <img src="/images/slide2.jpg">
+       
+      </div>
+
+      <div class="mySlides fade">
+        <div class="numbertext">3 / 5</div>
+        <img src="/images/slide3.jpg">
+       
+      </div>
+
+       <div class="mySlides fade">
+        <div class="numbertext">4 / 5</div>
+        <img src="/images/slide4.jpg">
+       
+      </div>
+
+       <div class="mySlides fade">
+        <div class="numbertext">5 / 5</div>
+        <img src="/images/slide5.png">
+       
+      </div>
+      <!-- Next and previous buttons -->
+      <a class="prev" onclick="plusSlides(-1)">&#10094;</a>
+      <a class="next" onclick="plusSlides(1)">&#10095;</a>
+    </div>
+    <br>
+
+    <!-- The dots/circles -->
+    <div style="text-align:center">
+      <span class="dot" onclick="currentSlide(1)"></span>
+      <span class="dot" onclick="currentSlide(2)"></span>
+      <span class="dot" onclick="currentSlide(3)"></span>
+      <span class="dot" onclick="currentSlide(4)"></span>
+      <span class="dot" onclick="currentSlide(5)"></span>
+    </div>
+  
+
+  <div class="featured-courses-container" style="
+    width: 92%;
+    margin: 0 auto 40px auto;
+    background: #ffffff;
+    border-radius: 12px;
+    padding-top: 40px; /* Add space for the title */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    overflow: hidden; /* Ensures content respects the border-radius */
+  ">
+    <div class="slider-title" style="margin-top: 0; margin-bottom: 30px; text-align: center; font-size: 3rem;">
+      <span class="slider-title-inner" style="background: #2563eb; border: 2px solid #2563eb; color: #ffffff; border-radius: 32px;">
+        <i class="fas fa-star" style="color:#facc15;margin-right:12px;"></i>
+        Khóa học nổi bật
+        <i class="fas fa-star" style="color:#facc15;margin-left:12px;"></i>
+      </span>
+    </div>
+  
+    <div class="news-slider-container" style="
+      position: relative;
+      padding: 20px 0; /* Vertical padding only */
+    ">
+     
+      <!-- The slider now has horizontal margins to create space for the arrows -->
+      <div class="news-section swiper news-swiper" style="margin: 0 60px;">
+        <div class="swiper-wrapper">
+          <% if (courses && courses.length) { %>
+          <% /* normalize various stored image paths and provide a fallback */ %>
+          <% function imageSrc(img) {
+               if (!img) return '/images/placeholder.svg';
+               if (typeof img !== 'string') return '/images/placeholder.svg';
+               img = String(img).replace(/\\\\/g, '/'); // backslashes -> slashes
+               if (/^https?:\/\//i.test(img)) return img; // full url
+               if (img.startsWith('/')) return img; // already absolute
+               if (img.startsWith('uploads/')) return '/' + img; // uploaded files served at /uploads
+               if (img.startsWith('images/')) return '/' + img; // existing public images
+               // bare filename — assume it's in public/images
+               return '/images/' + img;
+             } %>
+          <% courses.slice(0, 6).forEach(function(course) { %>
+          <div class="news-item2 swiper-slide">
+            <img src="<%= imageSrc(course.img) %>" alt="Course Image"
+              onerror="this.onerror=null;this.src='/images/placeholder.svg'">
+            <div class="news-content">
+              <div class="news-title">
+                <a href="/course-detail/<%= course.id %>"><%= course.title %></a>
+              </div>
+              <div class="news-description">
+                <%= course.course_desc %>
+              </div>
+            </div>
+          </div>
+          <% }); %>
+          <% } else { %>
+          <div class="news-item2 swiper-slide">
+            <div class="news-content">
+              <div class="news-title">No courses available</div>
+            </div>
+          </div>
+          <% } %>
+        </div>
+      </div>
+    
+     
+    </div>
+  </div>
+
+  <!-- news-slider-container dưới khoá học kỹ năng -->
+
+  <!-- School section (merged from school.ejs) -->
+  <section id="school">
+    <div class="slider-container school-slider">
+      <!-- items lish-->
+      <div class="slider-wrapper swiper-wrapper">
+        <div class="slider-item swiper-slide">
+          <div class="slide-content">
+            <h2 class="slide-title"></h2>
+            <p class="slide-description"></p>
+          </div>
+        </div>
+        <div class="slider-item swiper-slide">
+          <div class="slide-content">
+            <h3 class="slide-subtitle"></h3>
+          </div>
+        </div>
+        <div class="slider-item swiper-slide">
+          <div class="slide-content">
+            <h3 class="slide-subtitle"></h3>
+          </div>
+        </div>
+        <div class="slider-item swiper-slide">
+          <div class="slide-content">
+            <h3 class="slide-subtitle"></h3>
+          </div>
+        </div>
+        <div class="slider-item swiper-slide">
+          <div class="slide-content">
+            <h3 class="slide-subtitle"></h3>
+          </div>
+        </div>
+      </div>
+      <!-- slide button-->
+      <div class="slider-controls">
+
+
+      </div>
+    </div>
+    <!-- Teacher Slider Section -->
+    <div class="teacher-slider-card" style="
+      width: 92%;
+      margin: 0 auto 40px auto;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      overflow: hidden; /* Ensures content respects the border-radius */
+    ">
+    
+      <div class="news-slider-container" style="position: relative;">
+        
+        <div class="profile-swiper swiper" style="margin: 0 60px;">
+          <div class="swiper-wrapper">
+            <!-- Teacher profile slides go here -->
+            <div class="swiper-slide">
+              <div class="profile-card">
+                <div class="profile-image">
+                  <img src="/images/gv8.png" alt="Hoàng Long">
+                </div>
+                <h2 class="profile-name">Hoàng Long</h2>
+                <p class="profile-title">Giám đốc Trung tâm</p>
+              </div>
+            </div>
+            <div class="swiper-slide">
+              <div class="profile-card">
+                <div class="profile-image">
+                  <img src="/images/gv2.png" alt="Nguyễn Thị Lan">
+                </div>
+                <h2 class="profile-name">Nguyễn Thị Lan</h2>
+                <p class="profile-title">Giáo viên IELTS</p>
+              </div>
+            </div>
+            <div class="swiper-slide">
+              <div class="profile-card">
+                <div class="profile-image">
+                  <img src="/images/gv4.jpg" alt="Trần Văn Minh">
+                </div>
+                <h2 class="profile-name">Trần Văn Minh</h2>
+                <p class="profile-title">Giáo viên Toán</p>
+              </div>
+            </div>
+            <div class="swiper-slide">
+              <div class="profile-card">
+                <div class="profile-image">
+                  <img src="/images/gv3.png" alt="Lê Thị Hương">
+                </div>
+                <h2 class.profile-name">Lê Thị Hương</h2>
+                <p class="profile-title">Giáo viên Văn</p>
+              </div>
+            </div>
+            <div class="swiper-slide">
+              <div class="profile-card">
+                <div class="profile-image">
+                  <img src="/images/gv5.jpg" alt="Phạm Quốc Anh">
+                </div>
+                <h2 class="profile-name">Phạm Quốc Anh</h2>
+                <p class="profile-title">Giáo viên SAT</p>
+              </div>
+            </div>
+            <div class="swiper-slide">
+              <div class="profile-card">
+                <div class="profile-image">
+                  <img src="/images/gv6.jpg" alt="Ngô Thị Mai">
+                </div>
+                <h2 class="profile-name">Ngô Thị Mai</h2>
+                <p class="profile-title">Giáo viên Tiếng Anh</p>
+              </div>
+            </div>
+            <div class="swiper-slide">
+              <div class="profile-card">
+                <div class="profile-image">
+                  <img src="/images/gv7.jpg" alt="Đặng Văn Sơn">
+                </div>
+                <h2 class="profile-name">Đặng Văn Sơn</h2>
+                <p class="profile-title">Trợ giảng</p>
+              </div>
+            </div>
+            <div class="swiper-slide">
+              <div class="profile-card">
+                <div class="profile-image">
+                  <img src="/images/gv1.png" alt="Vũ Thị Thu">
+                </div>
+                <h2 class="profile-name">Vũ Thị Thu</h2>
+                <p class="profile-title">Nhân viên tư vấn</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+
+    <div class="container-about">
+      <div class="row">
+        <div class="content-section">
+          <h2>Về chúng tôi</h2>
+          <p>
+            <strong>Trung tâm ngoại ngữ Talent Education</strong> Chúng tôi là một trung tâm uy tín hoạt động hợp pháp
+            theo Giấy phép kinh doanh số 0822488288, được cấp bởi Sở Kế hoạch & Đầu tư Thành phố Hà Tĩnh vào ngày 07
+            tháng
+            01 năm 2025 (Mã số thuế: 3002268128). Người đại diện pháp luật của công ty là ông Hoàng Long.
+          </p>
+          <p>
+            - Thấu hiểu rằng mỗi học viên có một mục tiêu và xuất phát điểm khác nhau, chúng tôi đã thiết kế các khóa
+            học
+            đa dạng, bám sát nhu cầu thực tế:
+          </p>
+          <ul>
+            <li>
+              <strong>Khóa học Toán Văn Anh:</strong> Dành cho các bạn học sinh cấp 2 và 3, khóa học này tập trung xây
+              dựng nền tảng học thuật vững chắc, chuẩn bị cho các kì thi và củng cố kiến thức học được trên trường.
+            </li>
+            <li>
+              <strong>Khóa học tiếng Anh IELTS:</strong> Được thiết kế cho học sinh cuối cấp 2, cấp 3, sinh viên đại học
+              và những người đi làm có mục tiêu du học, định cư hoặc làm việc tại các quốc gia nói tiếng Anh như: Mỹ,
+              Úc,
+              Anh, Canada. Khóa học cung cấp chiến lược và kỹ năng làm bài thi IELTS hiệu quả ở cả 4 kỹ năng: nghe, nói,
+              đọc và viết.
+            </li>
+            <li>
+              <strong>Khóa học SAT:</strong> Hướng đến đối tượng tương tự IELTS (học sinh cuối cấp 3, sinh viên), nhưng
+              tập trung vào kỳ thi chuẩn hóa SAT, một yêu cầu quan trọng khi xét tuyển vào các trường đại học danh tiếng
+              tại Hoa Kỳ.
+            </li>
+          </ul>
+        </div>
+        <div class="image-section">
+          <img src="/images/3.jpg" alt="Lớp học">
+        </div>
+      </div>
+    </div>
+
+    <div class="container-letter">
+      <div class="row">
+        <!-- Phần hình ảnh -->
+        <div class="image-section">
+          <div class="image-wrapper">
+            <img src="/images/gv1.png" alt="Giám đốc Trung tâm">
+          </div>
+        </div>
+
+        <!-- Phần nội dung -->
+        <div class="content-section">
+          <h2>Thư ngỏ</h2>
+          <p>
+            Kính gửi quý phụ huynh và các bạn học viên,<br>
+            Trung tâm Tiếng Anh của chúng tôi xin gửi lời chào trân trọng nhất tới quý vị. Chúng tôi rất vui mừng được
+            chia sẻ với các bạn sứ mệnh của mình trong việc mang đến cho mọi người một môi trường học tập tiếng Anh
+            chuyên
+            nghiệp và hiệu quả.
+          </p>
+          <p>
+            Tại trung tâm chúng tôi, chúng tôi cam kết cung cấp cho các bạn các khóa học chất lượng cao, được thiết kế
+            để
+            phát triển kỹ năng ngôn ngữ một cách toàn diện. Chương trình học của chúng tôi không chỉ tập trung vào việc
+            nâng cao khả năng giao tiếp mà còn đảm bảo cho các bạn có được nền tảng vững chắc về ngữ pháp và từ vựng.
+          </p>
+          <p>
+            Đội ngũ giáo viên tại trung tâm là những người có kinh nghiệm và trình độ chuyên môn cao, luôn sẵn sàng hỗ
+            trợ
+            và truyền đạt kiến thức một cách truyền cảm hứng. Chúng tôi tin rằng việc học ngoại ngữ không chỉ là việc
+            học
+            một môn học, mà còn là việc khám phá văn hóa và mở rộng tầm nhìn.
+          </p>
+          <p>
+            Ngoài ra, trung tâm chúng tôi còn tổ chức các hoạt động ngoại khóa và sự kiện thú vị nhằm tạo cơ hội cho các
+            bạn học viên thực hành tiếng Anh và giao lưu với những người cùng chung niềm đam mê.
+          </p>
+          <p>
+            Mong rằng quý phụ huynh và các bạn học viên sẽ tìm thấy trung tâm của chúng tôi là một địa điểm lý tưởng để
+            bắt đầu hoặc phát triển hành trình học tập của mình trong việc chinh phục tiếng Anh.
+          </p>
+          <p>
+            Hãy liên hệ với chúng tôi ngay hôm nay để biết thêm thông tin chi tiết về các khóa học và các chương trình
+            khuyến mãi. Chúng tôi rất mong được đón tiếp các bạn tại trung tâm.
+          </p>
+          <p>
+            Trân trọng,<br>
+          </p>
+          <p>
+            <strong>Hoàng Long<br>Giám đốc Trung tâm Tiếng Anh TLE</strong>
+          </p>
+        </div>
+      </div>
+  </section>
+
+  <!-- News section (merged from news.ejs) -->
+  <section id="news">
+    <div class="container-news">
+      <h1>Tin tức</h1>
+      <div class="main-content-news">
+        <div class="news-section">
+          <div class="news-item">
+            <img src="/images/thpt.jpg" alt="News Image 1">
+            <div class="news-content">
+              <div class="news-title">
+                <a href="#">Ngày thi THPT quốc gia</a>
+              </div>
+              <div class="news-description">
+                Với Việt Nam, kỳ thi THPT quốc gia là một trong những kỳ thi quan trọng nhất trong năm học.
+                Kỳ thi này không chỉ đánh giá kiến thức của học sinh mà còn quyết định tương lai của họ.
+              </div>
+            </div>
+          </div>
+
+          <div class="news-item">
+            <img src="/images/thi toán.png" alt="News Image 2">
+            <div class="news-content">
+              <div class="news-title">
+                <a href="#">Nhận định đề thi THPT quốc gia môn toán</a>
+              </div>
+              <div class="news-description">
+                Toán là môn học quan trọng trong kỳ thi THPT quốc gia. Đề thi thường bao gồm các phần lý
+                thuyết và bài tập thực hành, giúp đánh giá khả năng tư duy và giải quyết vấn đề của học
+                sinh.
+              </div>
+            </div>
+          </div>
+
+          <div class="news-item">
+            <img src="/images/anh.jpg" alt="News Image 3">
+            <div class="news-content">
+              <div class="news-title">
+                <a href="#">Cuộc thi tiếng anh trực tuyến</a>
+              </div>
+              <div class="news-description">
+                Cuộc thi tiếng anh trực tuyến là một trong những hoạt động thú vị và bổ ích cho học sinh. Nó
+                không chỉ giúp học sinh nâng cao kỹ năng ngôn ngữ mà còn tạo cơ hội giao lưu và học hỏi.
+              </div>
+            </div>
+          </div>
+
+          <div class="news-item">
+            <img src="/images/văn.jpg" alt="News Image 4">
+            <div class="news-content">
+              <div class="news-title">
+                <a href="#">Vẻ đẹp của văn học Việt Nam</a>
+              </div>
+              <div class="news-description">
+                Văn học Việt Nam là một phần quan trọng trong văn hóa dân tộc. Nó không chỉ phản ánh lịch
+                sử, văn hóa mà còn thể hiện tâm tư, tình cảm của người dân Việt Nam qua các thời kỳ.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar">
+          <div class="popular-section">
+            <h2>Xem nhiều</h2>
+            <ul>
+              <li><a href="#">Ngày thi THPT quốc gia</a> <span>153</span></li>
+              <li><a href="#">Phân tích đề lý thi thử THPT quốc gia</a> <span>279</span></li>
+              <li><a href="#">Phân tích đề anh thi thử THPT quốc gia</a> <span>15</span></li>
+              <li><a href="#">Phân tích đề toán thi thử THPT quốc gia</a> <span>39</span></li>
+              <li><a href="#">Các cuộc thi tiếng anh trong nước</a></li>
+            </ul>
+          </div>
+
+          <div class="photo-section">
+            <h2>Ảnh</h2>
+            <img src="/images/ảnh.jpg" alt="Photo Section">
+            <p><a href="#">Học sinh nỗ lực học tập cho kì thi THPT quốc gia</a></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <%- include('../views/shared/footer.ejs') %>
+  <!-- link swiper-->
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+  <script src="/js/script.js"></script>
+  <script src="/js/slideshow.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Courses</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/mobile.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://demos.creative-tim.com/notus-js/assets/styles/tailwind.css">
+    <link rel="stylesheet"
+        href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        main {
+            flex: 1 0 auto;
+        }
+        footer {
+            flex-shrink: 0;
+        }
+        .modern-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2.5rem 2rem 2rem 2rem;
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(44, 62, 80, 0.10);
+            border: 1px solid #e3e6ed;
+            animation: fadeIn 0.5s;
+        }
+        .modern-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2375D8;
+            text-align: center;
+            margin-bottom: 2rem;
+            letter-spacing: 1px;
+        }
+        .modern-section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: #f7fafc;
+            border-radius: 10px;
+        }
+        .modern-section-title {
+            font-size: 1.25rem;
+            color: #4a5568;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+        .modern-courses-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 2rem;
+        }
+        .modern-course-card {
+            background: #fff;
+            border: 1px solid #e3e6ed;
+            border-radius: 12px;
+            padding: 1.5rem 1.25rem;
+            box-shadow: 0 2px 8px rgba(44, 62, 80, 0.06);
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .modern-course-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(36, 117, 216, 0.10);
+        }
+        .modern-course-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modern-course-title a {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #2375D8;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .modern-course-title a:hover {
+            color: #0c9083;
+        }
+        .modern-student-count {
+            font-size: 0.95rem;
+            color: #4a5568;
+            background: #edf2f7;
+            padding: 2px 12px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        .modern-course-info {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            font-size: 1rem;
+            color: #4A5568;
+        }
+        .modern-course-fee {
+            font-weight: 600;
+            color: #1a202c;
+        }
+        .modern-payment-badge {
+            font-size: 0.95rem;
+            padding: 2px 16px;
+            border-radius: 16px;
+            font-weight: 600;
+            color: #fff;
+            display: inline-block;
+        }
+        .modern-payment-badge.paid {
+            background-color: #38B2AC;
+            color: #fff;
+        }
+        .modern-payment-badge.unpaid {
+            background-color: #F56565;
+            color: #fff;
+        }
+        .modern-course-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.2rem;
+            font-size: 0.98rem;
+            margin-top: auto;
+            padding-top: 1rem;
+        }
+        .modern-detail-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+        .modern-detail-label {
+            color: #718096;
+            font-size: 0.92rem;
+            font-weight: 500;
+        }
+        .modern-detail-value {
+            font-weight: 600;
+            color: #2d3748;
+        }
+        .modern-teacher-info {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .modern-teacher-avatar {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #e2e8f0;
+            border: 2px solid #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(18px);}
+            to { opacity: 1; transform: translateY(0);}
+        }
+    </style>
+</head>
+<body>
+    <%- include('../shared/header.ejs') %>
+
+    <main class="py-8">
+        <div class="modern-container">
+            <div class="modern-title">
+                <i class="fas fa-chalkboard"></i> My Courses
+            </div>
+            <div class="modern-section">
+                <div class="modern-section-title">
+                    <i class="fas fa-list"></i> Danh sách khóa học của bạn
+                </div>
+                <div class="modern-courses-list">
+                    <% if (courses.length === 0) { %>
+                        <div style="color:#718096;font-size:1.1rem;">Bạn chưa đăng ký khóa học nào.</div>
+                    <% } %>
+                    <% courses.forEach(course => { %>
+                        <div class="modern-course-card">
+                            <div class="modern-course-header">
+                                <div class="modern-course-title">
+                                    <a href="/course-detail/<%= course.id %>"><%= course.course_name %></a>
+                                </div>
+                                <% if (user.role === 'teacher') { %>
+                                <div class="modern-student-count">
+                                    Students: <%= course.student_count %> (Paid: <%= course.paid_students %>)
+                                </div>
+                                <% } %>
+                            </div>
+                            <div class="modern-course-info">
+                                <div class="modern-course-fee">
+                                    Fee: <%= course.tuition_fee ? course.tuition_fee.toLocaleString('vi-VN') + ' VND' : 'Not set' %>
+                                </div>
+                                <% if (user.role === 'student') { %>
+                                <div class="modern-payment-badge <%= course.payment_status ? 'paid' : 'unpaid' %>">
+                                    <%= course.payment_status ? 'Paid' : 'Unpaid' %>
+                                </div>
+                                <% } %>
+                            </div>
+                            <div class="modern-course-details">
+                                <div class="modern-detail-group">
+                                    <span class="modern-detail-label">Class Schedule</span>
+                                    <span class="modern-detail-value">
+                                        <%= course.class_name %><br>
+                                        <%= course.class_start_time %> - <%= course.class_end_time %><br>
+                                        Weekly: <%= course.weekly_schedule.split(',').map(day => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][day-1]).join(', ') %>
+                                    </span>
+                                </div>
+                                <% if (user.role === 'student') { %>
+                                <div class="modern-detail-group">
+                                    <span class="modern-detail-label">Teacher</span>
+                                    <span class="modern-detail-value modern-teacher-info">
+                                        <img src="<%= course.teacher_avatar ? '/' + course.teacher_avatar.replace(/\\/g, '/') : '/images/default-avatar.png' %>" 
+                                             alt="<%= course.teacher_name %>" 
+                                             class="modern-teacher-avatar"
+                                             onerror="this.onerror=null;this.src='/images/default-avatar.png'">
+                                        <div>
+                                            <strong><%= course.teacher_name %></strong><br>
+                                            Email: <%= course.teacher_email %><br>
+                                            Phone: <%= course.teacher_phone %>
+                                        </div>
+                                    </span>
+                                </div>
+                                <% } %>
+                                <div class="modern-detail-group">
+                                    <span class="modern-detail-label">Description</span>
+                                    <span class="modern-detail-value">
+                                        <%= course.course_description || 'No description available' %>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <%- include('../shared/footer.ejs') %>
+
+</body>
+</html>
