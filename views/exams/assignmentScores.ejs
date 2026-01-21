@@ -10,6 +10,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://demos.creative-tim.com/notus-js/assets/styles/tailwind.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    
+    <script src="/js/auth-jwt.js"></script>
     <style>
         /* Modern container (align with examList styles) */
         main, .modern-container { flex: 1 0 auto; }
@@ -104,61 +106,10 @@
                                 <th style="width:220px;">Status</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <% scores.forEach(score => { %>
-                                <tr>
-                                    <td style="font-weight:600;"><%= score.student_name %></td>
-                                    <td><%= score.attempt_no || 'Not attempted' %></td>
-                                    <td>
-                                        <% if (score.score !== null) { %>
-                                            <span><%= score.score %></span>
-                                        <% } else if (score.submitted_at) { %>
-                                            <span class="small-muted">Pending grading</span>
-                                        <% } else if (score.started_at) { %>
-                                            <span class="small-muted">In progress</span>
-                                        <% } else { %>
-                                            <span class="small-muted">Not started</span>
-                                        <% } %>
-                                    </td>
-                                    <td>
-                                        <%= score.started_at ? new Date(score.started_at).toLocaleString('en-US', {
-                                            year: 'numeric', month: 'short', day: 'numeric',
-                                            hour: '2-digit', minute: '2-digit'
-                                        }) : 'N/A' %>
-                                    </td>
-                                    <td>
-                                        <%= score.submitted_at ? new Date(score.submitted_at).toLocaleString('en-US', {
-                                            year: 'numeric', month: 'short', day: 'numeric',
-                                            hour: '2-digit', minute: '2-digit'
-                                        }) : 'N/A' %>
-                                    </td>
-                                    <td>
-                                        <div class="actions">
-                                            <% if (!score.started_at) { %>
-                                                <span class="badge bg-secondary">Not Started</span>
-                                            <% } else if (!score.submitted_at) { %>
-                                                <span class="badge bg-warning">In Progress</span>
-                                            <% } else if (score.status === 'in_progress') { %>
-                                                <span class="badge bg-warning">In Progress</span>
-                                            <% } else if (score.status === 'graded') { %>
-                                                <span class="badge bg-success">Graded</span>
-                                            <% } else { %>
-                                                <span class="badge bg-info">Awaiting Manual Grading</span>
-                                            <% } %>
-
-                                            <% if (score.submitted_at && score.status !== 'graded') { %>
-                                                <a href="/exams/attempts/<%= score.attempt_id %>/grade" class="btn-outline-primary" style="margin-left:.5rem;">Grade</a>
-                                            <% } %>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <% }) %>
-
-                            <% if (scores.length === 0) { %>
-                                <tr>
-                                    <td colspan="6" class="text-center small-muted" style="padding:2rem;">No students enrolled in this class</td>
-                                </tr>
-                            <% } %>
+                        <tbody id="scoresTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align:center; padding:2rem; color:#6b7280;">Loading scores...</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -171,5 +122,47 @@
 
 <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 <script src="/js/script.js"></script>
+<script>
+const assignmentId = window.location.pathname.split('/').filter(p => p)[2];
+
+async function loadScores() {
+  try {
+    const response = await fetch(`/api/exams/assignments/${assignmentId}/scores`);
+    if (!response.ok) throw new Error('Failed to load scores');
+    const data = await response.json();
+    
+    const tbody = document.getElementById('scoresTableBody');
+    if (!data.scores || data.scores.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2rem; color:#6b7280;">No students with attempts</td></tr>`;
+      return;
+    }
+    
+    tbody.innerHTML = data.scores.map(score => `
+      <tr>
+        <td style="font-weight:600;">${score.student_name}</td>
+        <td>${score.attempt_no || 'Not attempted'}</td>
+        <td>
+          ${score.score !== null ? score.score : score.submitted_at ? 'Pending grading' : score.started_at ? 'In progress' : 'Not started'}
+        </td>
+        <td>${score.started_at ? new Date(score.started_at).toLocaleString() : 'N/A'}</td>
+        <td>${score.submitted_at ? new Date(score.submitted_at).toLocaleString() : 'N/A'}</td>
+        <td>
+          <div class="actions">
+            <span class="badge ${!score.started_at ? 'bg-secondary' : !score.submitted_at ? 'bg-warning' : score.status === 'graded' ? 'bg-success' : 'bg-info'}">
+              ${!score.started_at ? 'Not Started' : !score.submitted_at ? 'In Progress' : score.status === 'graded' ? 'Graded' : 'Awaiting Manual Grading'}
+            </span>
+            ${score.submitted_at && score.status !== 'graded' ? `<a href="/exams/attempts/${score.attempt_id}/grade" class="btn-outline-primary" style="margin-left:.5rem;">Grade</a>` : ''}
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  } catch (error) {
+    console.error('Error loading scores:', error);
+    document.getElementById('scoresTableBody').innerHTML = `<tr><td colspan="6" style="text-align:center; color:#ef4444;">Error loading scores</td></tr>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadScores);
+</script>
 </body>
 </html>

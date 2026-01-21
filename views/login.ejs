@@ -126,35 +126,27 @@
 					<h3>Sign In</h3>
 				</div>
 				<div class="card-body">
-					<form action="/login" method="POST">
-						<!-- FLASH ERRORS -->
-						<% if (messages.error && messages.error.length) { %>
-						<div class="alert alert-danger">
-							<% messages.error.forEach(function(msg){ %>
-							<p class="mb-0">
-								<%= msg %>
-							</p>
-							<% }); %>
-						</div>
-						<% } %>
+					<form id="loginForm">
+						<!-- ERROR MESSAGES -->
+						<div id="errorMessages"></div>
 
 						<div class="input-group form-group">
 							<div class="input-group-prepend">
 								<span class="input-group-text"><i class="fas fa-user"></i></span>
 							</div>
-							<input type="email" name="email" class="form-control" placeholder="email">
+							<input type="email" id="email" name="email" class="form-control" placeholder="email" required>
 						</div>
 						<div class="input-group form-group">
 							<div class="input-group-prepend">
 								<span class="input-group-text"><i class="fas fa-key"></i></span>
 							</div>
-							<input type="password" name="password" class="form-control" placeholder="password">
+							<input type="password" id="password" name="password" class="form-control" placeholder="password" required>
 						</div>
 						<div class="row align-items-center remember">
-							<input type="checkbox">Remember Me
+							<input type="checkbox" id="rememberMe" name="rememberMe">Remember Me
 						</div>
 						<div class="form-group mt-3">
-							<input type="submit" value="Login" class="btn float-right login_btn">
+							<button type="submit" class="btn float-right login_btn">Login</button>
 						</div>
 						<div class="forgot-password-link text-center mt-2">
 							<a href="#">Forgot your password?</a>
@@ -238,3 +230,88 @@
 </body>
 
 </html>
+
+<script>
+	document.getElementById('loginForm').addEventListener('submit', async function(e) {
+		e.preventDefault();
+
+		const email = document.getElementById('email').value;
+		const password = document.getElementById('password').value;
+		const rememberMe = document.getElementById('rememberMe').checked;
+		const errorContainer = document.getElementById('errorMessages');
+
+		// Clear previous errors
+		errorContainer.innerHTML = '';
+
+		try {
+			const response = await fetch('/api/login', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ email, password })
+			});
+
+			const data = await response.json();
+
+			if (!response.ok) {
+				// Show error
+				const errorDiv = document.createElement('div');
+				errorDiv.className = 'alert alert-danger';
+				errorDiv.innerHTML = `<i class="fas fa-exclamation-circle mr-2"></i>${data.error || 'Login failed'}`;
+				errorContainer.appendChild(errorDiv);
+				return;
+			}
+
+			// Store JWT token in localStorage
+			localStorage.setItem('authToken', data.token);
+			localStorage.setItem('authUser', JSON.stringify(data.user));
+
+			// Store token in sessionStorage if "Remember Me" is checked
+			if (rememberMe) {
+				localStorage.setItem('rememberMe', 'true');
+			}
+
+			// Show success message
+			const successDiv = document.createElement('div');
+			successDiv.className = 'alert alert-success';
+			successDiv.innerHTML = `<i class="fas fa-check-circle mr-2"></i>Login successful! Redirecting...`;
+			errorContainer.appendChild(successDiv);
+
+			// Redirect after short delay
+			setTimeout(() => {
+				window.location.href = '/';
+			}, 500);
+
+		} catch (error) {
+			console.error('Error:', error);
+			const errorDiv = document.createElement('div');
+			errorDiv.className = 'alert alert-danger';
+			errorDiv.innerHTML = `<i class="fas fa-exclamation-circle mr-2"></i>An error occurred: ${error.message}`;
+			errorContainer.appendChild(errorDiv);
+		}
+	});
+
+	// Check if user is already logged in
+	window.addEventListener('load', function() {
+		const token = localStorage.getItem('authToken');
+		if (token) {
+			// Verify token is still valid
+			fetch('/api/classes', {
+				headers: {
+					'Authorization': `Bearer ${token}`
+				}
+			}).then(res => {
+				if (res.ok) {
+					window.location.href = '/';
+				} else {
+					localStorage.removeItem('authToken');
+					localStorage.removeItem('authUser');
+				}
+			}).catch(() => {
+				localStorage.removeItem('authToken');
+				localStorage.removeItem('authUser');
+			});
+		}
+	});
+</script>

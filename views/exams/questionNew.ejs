@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-    
+    <script src="/js/auth-jwt.js"></script>
     <style>
         .modern-container {
             max-width: 1200px;
@@ -106,7 +106,7 @@
                 Add New Question
             </div>
             <div>
-                <a href="/exams/<%= examId %>/edit" class="modern-btn-secondary"><i class="fas fa-arrow-left"></i> Back to Exam</a>
+                <a href="" id="backLink" class="modern-btn-secondary"><i class="fas fa-arrow-left"></i> Back to Exam</a>
             </div>
         </div>
 
@@ -158,7 +158,7 @@
             </div>
 
             <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:2rem;">
-                <a href="/exams/<%= examId %>/edit" class="modern-btn-secondary"><i class="fas fa-times"></i> Cancel</a>
+                <a href="" id="cancelLink" class="modern-btn-secondary"><i class="fas fa-times"></i> Cancel</a>
                 <button type="submit" class="modern-btn-primary">
                     <i class="fas fa-save"></i> Create Question
                 </button>
@@ -169,6 +169,13 @@
 
 
 <script>
+// Get examId from URL query parameter or extract from referrer
+const params = new URLSearchParams(window.location.search);
+const examId = params.get('examId') || window.location.pathname.split('/')[2];
+
+document.getElementById('backLink').href = `/exams/${examId}/edit`;
+document.getElementById('cancelLink').href = `/exams/${examId}/edit`;
+
 const questionForm = document.getElementById('questionForm');
 const questionType = document.getElementById('questionType');
 const mcqOptions = document.getElementById('mcqOptions');
@@ -208,7 +215,7 @@ function updateDeleteButtons() {
 }
 
 function addInitialOptions() {
-    optionsList.innerHTML = ''; // Clear list
+    optionsList.innerHTML = '';
     optionsList.appendChild(createOptionElement(0));
     optionsList.appendChild(createOptionElement(1));
     updateDeleteButtons();
@@ -229,7 +236,7 @@ questionType.addEventListener('change', () => {
 
 addOptionBtn.addEventListener('click', () => {
     const optionIndex = optionsList.children.length;
-    if (optionIndex < 10) { // Limit options
+    if (optionIndex < 10) {
         optionsList.appendChild(createOptionElement(optionIndex));
         updateDeleteButtons();
     }
@@ -239,7 +246,6 @@ optionsList.addEventListener('click', (e) => {
     const deleteBtn = e.target.closest('.delete-option');
     if (deleteBtn && !deleteBtn.disabled) {
         deleteBtn.closest('.modern-option-item').remove();
-        // Update letters and states
         optionsList.querySelectorAll('.modern-option-item').forEach((item, index) => {
             const letter = String.fromCharCode(65 + index);
             item.querySelector('.option-text').placeholder = `Option ${letter} Text`;
@@ -296,15 +302,15 @@ questionForm.addEventListener('submit', async (e) => {
     }
 
     try {
-        const response = await fetch('/<%= examId %>/questions/add', {
+        const response = await fetch(`/api/${examId}/questions/add`, {
             method: 'POST',
             body: formData
         });
 
         const data = await response.json();
         
-        if (data.success) {
-            window.location.href = `/exams/<%= examId %>/edit`;
+        if (data.message || data.questionId) {
+            window.location.href = `/exams/${examId}/edit`;
         } else {
             alert(data.message || 'Error creating question');
         }

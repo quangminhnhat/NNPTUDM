@@ -1,9 +1,9 @@
 <header>
     <div class="header-container">
-        <div class="logo">
-            <img src="/images/z6459306582259_85ca173d9f6beddf7ed7cd6dbfcaf7b1-removebg-preview.png" alt="Logo"
-                width="90" height="90">
-        </div>
+    <a href="/" class="logo">
+        <img src="/images/z6459306582259_85ca173d9f6beddf7ed7cd6dbfcaf7b1-removebg-preview.png" alt="Logo" width="90"
+            height="90">
+    </a>
       
 
         <% if (!user) { %>
@@ -72,11 +72,9 @@
 
                 <!-- Logout button for all authenticated users -->
                 <div class="nav-button">
-                    <form action="/logout?_method=DELETE" method="POST">
-                        <button type="submit" class="nav-button">
-                            <i class="fas fa-right-from-bracket"></i><span>Logout</span>
-                        </button>
-                    </form>
+                    <button type="button" class="nav-button" onclick="handleLogout()">
+                        <i class="fas fa-right-from-bracket"></i><span>Logout</span>
+                    </button>
                 </div>
 
                 <div id="nav-content-highlight"></div>
@@ -114,3 +112,36 @@
     </div>
 
 </header>
+
+<script>
+async function handleLogout() {
+    // Clear JWT token from localStorage before logout
+    if (typeof AuthJWT !== 'undefined') {
+        AuthJWT.clearAuth();
+    } else {
+        // Fallback if AuthJWT is not available
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('authUser');
+        localStorage.removeItem('rememberMe');
+    }
+    
+    // Perform server-side logout
+    try {
+        const response = await fetch('/logout', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+            window.location.href = '/login';
+        } else {
+            // Redirect to login anyway after clearing client token
+            window.location.href = '/login';
+        }
+    } catch (error) {
+        console.error('Logout error:', error);
+        // Clear client token and redirect even if server logout fails
+        window.location.href = '/login';
+    }
+}
+</script>

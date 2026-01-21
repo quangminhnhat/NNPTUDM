@@ -54,48 +54,59 @@ router.get('/exams', checkAuthenticated, async (req, res) => {
         WHERE te.user_id = ${req.user.id}
       `;
     } else if (userRole === 'student') {
-      // Get both assigned and attempted exams for students, including separate assignments of the same exam in different classes
+      // Get both assigned and attempted exams for students
       query = `
-        WITH LatestAttempts AS (
+        WITH StudentAttempts AS (
           SELECT 
             assignment_id,
+            student_id,
             attempt_id,
+            attempt_no,
             total_score,
             status as attempt_status,
-            COUNT(*) OVER (PARTITION BY assignment_id, student_id) as attempt_count,
             ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY attempt_no DESC) as rn
           FROM Attempts
-          WHERE status != 'in_progress' AND student_id = (
+          WHERE student_id = (
             SELECT id FROM students WHERE user_id = ${req.user.id}
           )
+        ),
+        AttemptCounts AS (
+          SELECT 
+            assignment_id,
+            student_id,
+            COUNT(*) as total_attempts,
+            SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_count
+          FROM Attempts
+          WHERE student_id = (
+            SELECT id FROM students WHERE user_id = ${req.user.id}
+          )
+          GROUP BY assignment_id, student_id
         )
         SELECT DISTINCT
           e.*,
           t.full_name as teacher_name,
           CASE 
-            WHEN a.attempt_status = 'completed' THEN 'Completed'
-            WHEN a.attempt_status = 'in_progress' THEN 'In Progress'
+            WHEN ac.in_progress_count > 0 THEN 'In Progress'
+            WHEN sa.attempt_status IN ('graded', 'completed') THEN 'Completed'
             WHEN ea.open_at <= GETDATE() AND ea.close_at >= GETDATE() AND 
-                 (a.attempt_count IS NULL OR 
-                  (ea.max_attempts IS NULL OR a.attempt_count < ea.max_attempts)) THEN 'Available'
+                 (ea.max_attempts IS NULL OR ac.total_attempts < ea.max_attempts) THEN 'Available'
             WHEN ea.open_at > GETDATE() THEN 'Upcoming'
             ELSE 'Expired'
           END as exam_status,
           CASE 
-            WHEN a.attempt_status = 'in_progress' THEN 0
+            WHEN ac.in_progress_count > 0 THEN 0
             WHEN ea.open_at <= GETDATE() AND ea.close_at >= GETDATE() AND 
-                 (a.attempt_count IS NULL OR 
-                  (ea.max_attempts IS NULL OR a.attempt_count < ea.max_attempts)) THEN 1
+                 (ea.max_attempts IS NULL OR ac.total_attempts < ea.max_attempts) THEN 1
             WHEN ea.open_at > GETDATE() THEN 2
             ELSE 3
           END as status_order,
-          a.total_score,
-          a.attempt_status,
+          sa.total_score,
+          sa.attempt_status,
           ea.open_at,
           ea.close_at,
           ea.assignment_id,
           ea.max_attempts,
-          ISNULL(a.attempt_count, 0) as attempt_count,
+          ISNULL(ac.total_attempts, 0) as attempt_count,
           s.id as student_id,
           en.class_id,
           c.class_name
@@ -108,7 +119,8 @@ router.get('/exams', checkAuthenticated, async (req, res) => {
           SELECT id FROM students WHERE user_id = ${req.user.id}
         )
         JOIN students s ON s.id = en.student_id
-        LEFT JOIN LatestAttempts a ON ea.assignment_id = a.assignment_id AND a.rn = 1
+        LEFT JOIN AttemptCounts ac ON ea.assignment_id = ac.assignment_id AND ac.student_id = s.id
+        LEFT JOIN StudentAttempts sa ON ea.assignment_id = sa.assignment_id AND sa.student_id = s.id AND sa.rn = 1
         WHERE s.user_id = ${req.user.id}
         ORDER BY status_order, ea.open_at ASC
       `;
@@ -1414,7 +1426,8 @@ router.get('/exams/:assignmentId/take', checkAuthenticated, authenticateRole(['s
             SELECT ea.*, e.*, t.user_id as teacher_user_id,
                    (SELECT COUNT(*) FROM Attempts 
                     WHERE assignment_id = ea.assignment_id 
-                    AND student_id = ${student[0].id}) as attempt_count
+                    AND student_id = ${student[0].id}
+                    AND submitted_at IS NOT NULL) as attempt_count
             FROM ExamAssignments ea
             JOIN Exams e ON ea.exam_id = e.exam_id
             JOIN teachers t ON e.teachers_id = t.id

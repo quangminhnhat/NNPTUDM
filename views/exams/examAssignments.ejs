@@ -13,7 +13,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-    <style>
+    
+    <script src="/js/auth-jwt.js"></script>
+   <style>
         /* Modern UI controls (comprehensive) - variables scoped to container */
         .modern-container {
             /* design tokens scoped here (no :root) */
@@ -132,27 +134,10 @@
                         <th colspan="2">Actions</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <% assignments.forEach(assignment => { %>
-                        <tr>
-                            <td><%= assignment.class_name %></td>
-                            <td><%= new Date(assignment.open_at).toLocaleString('en-US', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) %></td>
-                            <td><%= new Date(assignment.close_at).toLocaleString('en-US', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) %></td>
-                            <td><%= assignment.max_attempts || 'Unlimited' %></td>
-                            <td><%= assignment.student_count %></td>
-                            <td>
-                                <a href="/exams/assignments/<%= assignment.assignment_id %>/scores" class="action-btn" title="View Scores"><i class="fas fa-chart-bar"></i> Scores</a>
-                            </td>
-                            <td>
-                                <button data-assignment-id="<%= assignment.assignment_id %>" class="action-btn action-btn-danger btn-delete-assignment" title="Remove assignment">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    <% }) %>
-                    <% if (assignments.length === 0) { %>
-                        <tr><td colspan="7" style="text-align:center; color:#888; padding:1rem;">No classes assigned yet</td></tr>
-                    <% } %>
+                <tbody id="assignmentsTableBody">
+                    <tr>
+                        <td colspan="7" style="text-align:center; padding:1rem; color:#6b7280;">Loading assignments...</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -313,9 +298,66 @@ async function deleteAssignment(assignmentId) {
  });
  </script>
 
+
 <%- include('../shared/footer') %>
 <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 <script src="/js/script.js"></script>
+<script>
+const examId = window.location.pathname.split('/')[2];
+
+async function loadAssignments() {
+  try {
+    const response = await fetch(`/api/exams/${examId}/assign`);
+    if (!response.ok) throw new Error('Failed to load assignments');
+    const data = await response.json();
+    
+    const tbody = document.getElementById('assignmentsTableBody');
+    if (!data.assignments || data.assignments.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#888; padding:1rem;">No classes assigned yet</td></tr>`;
+      return;
+    }
+    
+    tbody.innerHTML = data.assignments.map(a => `
+      <tr>
+        <td>${a.class_name}</td>
+        <td>${new Date(a.open_at).toLocaleString()}</td>
+        <td>${new Date(a.close_at).toLocaleString()}</td>
+        <td>${a.max_attempts || 'Unlimited'}</td>
+        <td>${a.student_count}</td>
+        <td>
+          <a href="/exams/assignments/${a.assignment_id}/scores" class="action-btn" title="View Scores"><i class="fas fa-chart-bar"></i> Scores</a>
+        </td>
+        <td>
+          <button data-assignment-id="${a.assignment_id}" class="action-btn action-btn-danger btn-delete-assignment" title="Remove assignment" onclick="deleteAssignment(this)">
+            <i class="fas fa-trash"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (error) {
+    console.error('Error loading assignments:', error);
+    document.getElementById('assignmentsTableBody').innerHTML = `<tr><td colspan="7" style="text-align:center; color:#ef4444;">Error loading assignments</td></tr>`;
+  }
+}
+
+function deleteAssignment(btn) {
+  const assignmentId = btn.dataset.assignmentId;
+  if (confirm('Are you sure you want to delete this assignment?')) {
+    fetch(`/api/exams/assignments/${assignmentId}`, { method: 'DELETE' })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        loadAssignments();
+      } else {
+        alert(data.message || 'Error deleting assignment');
+      }
+    })
+    .catch(() => alert('Could not delete assignment'));
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadAssignments);
+</script>
 </body>
 
 </html>

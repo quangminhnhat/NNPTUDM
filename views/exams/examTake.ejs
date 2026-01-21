@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Take Exam - <%= exam.exam_title %></title>
+    <title>Take Exam</title>
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="/css/mobile.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-
+    <script src="/js/auth-jwt.js"></script>
     <style>
         main, .modern-container {
             flex: 1 0 auto;
@@ -153,8 +153,8 @@
     <div class="modern-container" id="examContainer">
         <div class="exam-header">
             <div class="exam-title">
-                <h2><%= exam.exam_title %></h2>
-                <p>Exam Code: <%= exam.exam_code %></p>
+                <h2 id="examTitle">Loading...</h2>
+                <p id="examCode">Exam Code: -</p>
             </div>
             <div class="timer-container">
                 <h4>Time: <span id="timer"></span></h4>
@@ -165,94 +165,11 @@
             Do not refresh or close the page. Your progress is automatically saved.
         </div>
 
-        <script>
-            // Initialize timer
-            const startTime = new Date().getTime();
-            const duration = <%= exam.duration_min %> * 60 * 1000;
-            const endTime = startTime + duration;
-
-            function updateTimer() {
-                const now = new Date().getTime();
-                const timeLeft = endTime - now;
-                
-                if (timeLeft <= 0) {
-                    clearInterval(timerInterval);
-                    document.getElementById('timer').textContent = '00:00';
-                    submitExam(true);
-                    return;
-                }
-
-                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
-                document.getElementById('timer').textContent = 
-                    minutes.toString().padStart(2, '0') + ':' + 
-                    seconds.toString().padStart(2, '0');
-            }
-
-            const timerInterval = setInterval(updateTimer, 1000);
-            updateTimer(); // Initial update
-        </script>
-
         <form id="examForm" novalidate>
-            <input type="hidden" id="attemptId" value="<%= attemptId %>">
-            
+            <input type="hidden" id="attemptId">
             <div id="questionContainer">
-                <% questions.forEach((question, index) => { %>
-                    <div class="modern-question-card" data-question-id="<%= question.question_id %>">
-                        <div class="modern-card-header">
-                            <h5>Question <%= index + 1 %></h5>
-                            <span class="points-badge"><%= question.points %> points</span>
-                        </div>
-                        <div class="modern-card-body">
-                            <p class="question-text"><%- question.body_text %></p>
-                            
-                            <% if (question.media && question.media.length > 0) { %>
-                                <div class="question-media mb-3">
-                                    <% question.media.forEach(media => { %>
-                                        <% if (media.file_url.match(/\.(jpg|jpeg|png|gif)$/i)) { %>
-                                            <img src="/<%= media.file_url %>" class="img-fluid mb-2" alt="Question Image" style="max-width:400px; border-radius:8px;">
-                                        <% } %>
-                                    <% }) %>
-                                </div>
-                            <% } %>
-
-                            <div class="answer-section">
-                                <% if (question.type_name === 'Câu hỏi trắc nghiệm' && question.options) { %>
-                                    <div class="mcq-options">
-                                        <% question.options.forEach((option, optIndex) => { %>
-                                            <div class="modern-form-check">
-                                                <input 
-                                                    class="form-check-input" 
-                                                    type="radio"
-                                                    name="question_<%= question.question_id %>" 
-                                                    id="option_<%= option.option_id %>"
-                                                    value="<%= option.option_id %>"
-                                                    data-question-id="<%= question.question_id %>"
-                                                    <% if (question.response && question.response.some(r => r.selected_option_id === option.option_id)) { %>checked<% } %>
-                                                >
-                                                <label for="option_<%= option.option_id %>">
-                                                    <%= String.fromCharCode(65 + optIndex) %>. <%= option.option_text %>
-                                                </label>
-                                            </div>
-                                        <% }) %>
-                                    </div>
-                                <% } else if (question.type_code === 'ESSAY') { %>
-                                    <div class="form-group">
-                                        <textarea 
-                                            class="modern-textarea" 
-                                            rows="6" 
-                                            data-question-id="<%= question.question_id %>"
-                                            placeholder="Enter your answer here..."
-                                        ><% if(question.response && question.response[0] && question.response[0].response_text) { %><%= question.response[0].response_text %><% } %></textarea>
-                                    </div>
-                                    
-                                <% } %>
-                            </div>
-                        </div>
-                    </div>
-                <% }) %>
+                <div style="text-align:center; padding:2rem; color:#6b7280;">Loading questions...</div>
             </div>
-
             <div class="text-center mt-4 mb-5">
                 <button type="submit" class="modern-btn-primary">Submit Exam</button>
             </div>
@@ -261,76 +178,231 @@
 </main>
 
 <script>
-async function submitExam(isAutoSubmit = false) {
-    try {
-        const form = document.getElementById('examForm');
-        const responses = {};
+// Get assignment ID from URL
+const assignmentId = window.location.pathname.split('/')[2];
+let attemptId = '';
+let endTime = null;
+let timerInterval = null;
 
-        document.querySelectorAll('.form-check-input:checked').forEach(radio => {
-            const questionId = radio.getAttribute('data-question-id');
-            responses[questionId] = {
-                selectedOptionId: parseInt(radio.value)
-            };
-        });
-
-        document.querySelectorAll('.modern-textarea').forEach(textarea => {
-            const questionId = textarea.getAttribute('data-question-id');
-            if (textarea.value.trim()) {
-                responses[questionId] = {
-                    text: textarea.value.trim()
-                };
-            }
-        });
-
-        const formData = new FormData();
-        formData.append('responses', JSON.stringify(responses));
-        formData.append('isAutoSubmit', isAutoSubmit.toString());
-
-        document.querySelectorAll('.modern-file-input').forEach(fileInput => {
-            const questionId = fileInput.getAttribute('data-question-id');
-            if (fileInput.files.length > 0) {
-                Array.from(fileInput.files).forEach(file => {
-                    formData.append(`files_${questionId}`, file);
-                });
-            }
-        });
-
-        const attemptId = document.getElementById('attemptId').value;
-        const response = await fetch(`/exams/submit/${attemptId}`, {
-            method: 'POST',
-            body: formData
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            document.getElementById('examForm').classList.add('submitted');
-            alert(result.message);
-            window.location.href = '/exams';
-        } else {
-            throw new Error(result.message);
-        }
-    } catch (error) {
-        console.error('Error submitting exam:', error);
-        alert('Error submitting exam. Please try again.');
+// Load exam and questions
+async function loadExamData() {
+  try {
+    const response = await fetch(`/api/${assignmentId}/start`, { method: 'POST' });
+    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+    const data = await response.json();
+    
+    console.log('Exam data received:', data);
+    
+    if (data.exam && data.attempt) {
+      const exam = data.exam;
+      attemptId = data.attempt.attempt_id;
+      document.getElementById('attemptId').value = attemptId;
+      document.getElementById('examTitle').textContent = exam.exam_title;
+      document.getElementById('examCode').textContent = `Exam Code: ${exam.exam_code}`;
+      
+      // Calculate end time
+      const durationMs = exam.duration_min * 60 * 1000;
+      endTime = new Date().getTime() + durationMs;
+      
+      // Load questions
+      loadQuestions(data.questions || []);
+      
+      // Start timer
+      startTimer();
+    } else {
+      throw new Error('Invalid response format: missing exam or attempt data');
     }
+  } catch (error) {
+    console.error('Error loading exam:', error);
+    document.getElementById('questionContainer').innerHTML = `<div style="color:#ef4444; padding:2rem; text-align:center;">Error loading exam: ${error.message}</div>`;
+  }
+}
+
+function loadQuestions(questions) {
+  const container = document.getElementById('questionContainer');
+  if (!questions || questions.length === 0) {
+    container.innerHTML = '<div style="color:#6b7280; padding:2rem; text-align:center;">No questions available</div>';
+    return;
+  }
+  
+  container.innerHTML = questions.map((q, idx) => `
+    <div class="modern-question-card" data-question-id="${q.question_id}">
+      <div class="modern-card-header">
+        <h5>Question ${idx + 1}</h5>
+        <span class="points-badge">${q.points} points</span>
+      </div>
+      <div class="modern-card-body">
+        <p class="question-text">${q.body_text}</p>
+        ${q.media && q.media.length > 0 ? `
+          <div class="question-media mb-3">
+            ${q.media.filter(m => m.file_url.match(/\.(jpg|jpeg|png|gif)$/i)).map(m => `
+              <img src="/${m.file_url}" class="img-fluid mb-2" alt="Question Image" style="max-width:400px; border-radius:8px;">
+            `).join('')}
+          </div>
+        ` : ''}
+        <div class="answer-section">
+          ${q.type_id === 1 && q.options ? `
+            <div class="mcq-options">
+              ${q.options.map((opt, optIdx) => `
+                <div class="modern-form-check">
+                  <input class="form-check-input" type="radio"
+                    name="question_${q.question_id}" 
+                    id="option_${opt.option_id}"
+                    value="${opt.option_id}"
+                    data-question-id="${q.question_id}">
+                  <label for="option_${opt.option_id}">
+                    ${String.fromCharCode(65 + optIdx)}. ${opt.option_text}
+                  </label>
+                </div>
+              `).join('')}
+            </div>
+          ` : `
+            <div class="form-group">
+              <textarea class="modern-textarea" rows="6" 
+                data-question-id="${q.question_id}"
+                placeholder="Enter your answer here..."></textarea>
+            </div>
+          `}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function startTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  
+  function updateTimer() {
+    const now = new Date().getTime();
+    const timeLeft = endTime - now;
+    
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      document.getElementById('timer').textContent = '00:00';
+      submitExam(true);
+      return;
+    }
+
+    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+    document.getElementById('timer').textContent = 
+      minutes.toString().padStart(2, '0') + ':' + 
+      seconds.toString().padStart(2, '0');
+  }
+
+  timerInterval = setInterval(updateTimer, 1000);
+  updateTimer();
+}
+
+async function submitExam(isAutoSubmit = false) {
+  try {
+    // Set flag immediately to prevent beforeunload from interfering
+    isFormSubmitted = true;
+    
+    const responses = {};
+
+    document.querySelectorAll('.form-check-input:checked').forEach(radio => {
+      const questionId = radio.getAttribute('data-question-id');
+      responses[questionId] = {
+        selectedOptionId: parseInt(radio.value)
+      };
+    });
+
+    document.querySelectorAll('.modern-textarea').forEach(textarea => {
+      const questionId = textarea.getAttribute('data-question-id');
+      if (textarea.value.trim()) {
+        responses[questionId] = {
+          text: textarea.value.trim()
+        };
+      }
+    });
+
+    console.log('Submitting responses:', responses);
+
+    const formData = new FormData();
+    formData.append('responses', JSON.stringify(responses));
+    formData.append('isAutoSubmit', isAutoSubmit.toString());
+
+    const response = await fetch(`/api/exams/submit/${attemptId}`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await response.json();
+    console.log('Submit response:', result);
+    
+    if (result.success || result.message) {
+      alert(result.message || 'Exam submitted successfully');
+      window.location.href = '/exams';
+    } else {
+      throw new Error(result.message || 'Submit failed');
+    }
+  } catch (error) {
+    console.error('Error submitting exam:', error);
+    // Reset flag if submission failed
+    isFormSubmitted = false;
+    if (!isAutoSubmit) {
+      alert('Error submitting exam. Please try again.');
+    }
+  }
 }
 
 document.getElementById('examForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (isAutoSubmit || confirm('Are you sure you want to submit this exam? This action cannot be undone.')) {
-        await submitExam(false);
-    }
+  e.preventDefault();
+  if (confirm('Are you sure you want to submit this exam? This action cannot be undone.')) {
+    await submitExam(false);
+  }
 });
 
-let isAutoSubmit = false;
+let isFormSubmitted = false;
 window.addEventListener('beforeunload', (e) => {
-    const form = document.getElementById('examForm');
-    if (!form.classList.contains('submitted') && !isAutoSubmit) {
-        e.preventDefault();
-        e.returnValue = '';
+  if (!isFormSubmitted && attemptId) {
+    // Auto-submit exam if user leaves without clicking submit
+    isFormSubmitted = true;
+    
+    const responses = {};
+
+    document.querySelectorAll('.form-check-input:checked').forEach(radio => {
+      const questionId = radio.getAttribute('data-question-id');
+      responses[questionId] = {
+        selectedOptionId: parseInt(radio.value)
+      };
+    });
+
+    document.querySelectorAll('.modern-textarea').forEach(textarea => {
+      const questionId = textarea.getAttribute('data-question-id');
+      if (textarea.value.trim()) {
+        responses[questionId] = {
+          text: textarea.value.trim()
+        };
+      }
+    });
+
+    // Use sendBeacon to ensure request completes even if page unloads
+    const formData = new FormData();
+    formData.append('responses', JSON.stringify(responses));
+    formData.append('isAutoSubmit', 'true');
+    
+    // Try to send via beacon (best effort, no guarantee of delivery)
+    if (navigator.sendBeacon) {
+      const blob = new Blob([new URLSearchParams(formData).toString()], { type: 'application/x-www-form-urlencoded' });
+      navigator.sendBeacon(`/api/exams/submit/${attemptId}`, blob);
     }
+    
+    // Also try with fetch using keepalive flag (modern approach)
+    fetch(`/api/exams/submit/${attemptId}`, {
+      method: 'POST',
+      body: formData,
+      keepalive: true
+    }).catch(err => console.error('Auto-submit error:', err));
+    
+    e.preventDefault();
+    e.returnValue = '';
+  }
 });
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', loadExamData);
 </script>
 
 <%- include('../shared/footer') %>

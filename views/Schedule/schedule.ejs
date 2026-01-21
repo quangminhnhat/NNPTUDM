@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
   <link rel="stylesheet"
     href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-
+  <script src="/js/auth-jwt.js"></script>
 </head>
 
 <body class>
@@ -34,58 +34,20 @@
       </div>
       <div class="modern-week-nav">
         <a href="/schedule" class="modern-btn-primary">Tuần hiện tại</a>
-        <a href="/schedule?weekStart=<%= prevWeekStart %>" class="modern-btn-secondary">&lt;</a>
-        <div class="modern-week-range">
-          Tuần: <%= days[0].date %> – <%= days[6].date %>
-        </div>
-        <a href="/schedule?weekStart=<%= nextWeekStart %>" class="modern-btn-secondary">&gt;</a>
+        <a href="/schedule?weekStart=" id="prevWeekBtn" class="modern-btn-secondary">&lt;</a>
+        <div class="modern-week-range" id="weekRange">Loading...</div>
+        <a href="/schedule?weekStart=" id="nextWeekBtn" class="modern-btn-secondary">&gt;</a>
       </div>
     </div>
     <div class="overflow-x-auto">
       <table class="modern-table" style="min-width:900px;">
         <thead>
-          <tr>
+          <tr id="headerRow">
             <th>Tiết</th>
-            <% days.forEach(function(day) { %>
-              <th><%= day.name %><br><span style="font-weight:400;font-size:0.95em;"><%= day.date %></span></th>
-            <% }); %>
           </tr>
         </thead>
-        <tbody>
-          <% for (let period = 1; period <= 15; period++) { %>
-            <tr>
-              <td class="modern-schedule-period">Tiết <%= period %></td>
-              <% days.forEach((day) => { 
-                const currentDay = new Date(day.iso);
-              %>
-              <td style="vertical-align:top;min-width:120px;">
-                <% if (currentDay >= courseStart && currentDay <= courseEnd) { %>
-                  <% 
-                    const dayClasses = scheduleData.filter(cls => {
-                      return cls.date === day.iso && 
-                             cls.startPeriod <= period && 
-                             cls.endPeriod >= period;
-                    });
-                    if (dayClasses.length > 0) {
-                      const firstClass = dayClasses[0];
-                  %>
-                  <div class="modern-class-card <%= firstClass.type === 'regular' ? 'regular' : 'special' %>">
-                    <div class="modern-class-title"><%= firstClass.courseName %></div>
-                    <div class="modern-class-sub"><%= firstClass.className %></div>
-                    <% if (firstClass.teacher) { %>
-                      <div class="modern-class-teacher"><%= firstClass.teacher %></div>
-                    <% } %>
-                  </div>
-                  <% } else { %>
-                  <div class="modern-schedule-empty"></div>
-                  <% } %>
-                <% } else { %>
-                  <div class="modern-schedule-empty"></div>
-                <% } %>
-              </td>
-              <% }); %>
-            </tr>
-          <% } %>
+        <tbody id="scheduleTable">
+          <tr><td colspan="8" style="text-align:center; padding: 2rem;">Loading schedule...</td></tr>
         </tbody>
       </table>
     </div>
@@ -302,6 +264,131 @@
     </div>
   </footer>
   <script src="/js/main.js"></script>
-</body>
+  <script>
+    function getWeekStart(date) {
+      const d = new Date(date);
+      const day = d.getUTCDay();
+      const diff = d.getUTCDate() - day;
+      return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), diff));
+    }
+
+    function formatDate(date) {
+      return date.toISOString().split('T')[0];
+    }
+
+    function addDays(date, days) {
+      const result = new Date(date);
+      result.setUTCDate(result.getUTCDate() + days);
+      return result;
+    }
+
+    function getWeekDays(weekStart) {
+      const days = [];
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      for (let i = 0; i < 7; i++) {
+        const date = addDays(weekStart, i);
+        days.push({
+          name: dayNames[i],
+          date: formatDate(date),
+          iso: formatDate(date)
+        });
+      }
+      return days;
+    }
+
+    function timeToPeriod(timeStr) {
+      if (!timeStr) return 0;
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const totalMinutes = hours * 60 + minutes;
+      
+      // Period times (assuming 50 min periods with 10 min breaks)
+      const periodStart = 420; // 7:00 AM
+      const periodDuration = 50;
+      const breakDuration = 10;
+      
+      let currentTime = periodStart;
+      for (let p = 1; p <= 15; p++) {
+        if (totalMinutes >= currentTime && totalMinutes < currentTime + periodDuration) {
+          return p;
+        }
+        currentTime += periodDuration + breakDuration;
+      }
+      return 0;
+    }
+
+    async function loadScheduleView() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        let weekStart = params.get('weekStart');
+        
+        if (!weekStart) {
+          weekStart = formatDate(getWeekStart(new Date()));
+        }
+        
+        const weekStartDate = new Date(weekStart + 'T00:00:00Z');
+        
+        const response = await fetch(`/api/schedule?weekStart=${weekStart}`);
+        if (!response.ok) throw new Error('Failed to load schedule');
+        const data = await response.json();
+        
+        console.log('API Response:', data);
+        
+        const days = data.days || getWeekDays(weekStartDate);
+        const scheduleData = data.scheduleData || [];
+        
+        // Render day headers
+        const headerRow = document.getElementById('headerRow');
+        const dayHeaders = days.map(day => 
+          `<th>${day.name}<br><span style="font-weight:400;font-size:0.95em;">${day.date}</span></th>`
+        ).join('');
+        headerRow.innerHTML += dayHeaders;
+        
+        // Update week navigation
+        const prevWeek = addDays(weekStartDate, -7);
+        const nextWeek = addDays(weekStartDate, 7);
+        document.getElementById('prevWeekBtn').href = `/schedule?weekStart=${formatDate(prevWeek)}`;
+        document.getElementById('nextWeekBtn').href = `/schedule?weekStart=${formatDate(nextWeek)}`;
+        document.getElementById('weekRange').textContent = 
+          `Tuần: ${days[0].date} – ${days[6].date}`;
+        
+        // Render schedule table
+        let tableHtml = '';
+        for (let period = 1; period <= 15; period++) {
+          tableHtml += `<tr><td class="modern-schedule-period">Tiết ${period}</td>`;
+          
+          for (const day of days) {
+            let cellHtml = '<td style="vertical-align:top;min-width:120px;">';
+            
+            const classForPeriod = scheduleData.find(cls => {
+              return cls.date === day.iso && period >= cls.startPeriod && period <= cls.endPeriod;
+            });
+            
+            if (classForPeriod) {
+              cellHtml += `
+                <div class="modern-class-card">
+                  <div class="modern-class-title">${classForPeriod.courseName || 'N/A'}</div>
+                  <div class="modern-class-sub">${classForPeriod.className || 'N/A'}</div>
+                  <div class="modern-class-teacher">${classForPeriod.teacher || 'N/A'}</div>
+                </div>
+              `;
+            } else {
+              cellHtml += '<div class="modern-schedule-empty"></div>';
+            }
+            cellHtml += '</td>';
+            tableHtml += cellHtml;
+          }
+          tableHtml += '</tr>';
+        }
+        
+        document.getElementById('scheduleTable').innerHTML = tableHtml;
+      } catch (error) {
+        console.error('Error loading schedule:', error);
+        document.getElementById('scheduleTable').innerHTML = 
+          '<tr><td colspan="8" style="text-align:center; padding: 2rem; color: #ef4444;">Error loading schedule</td></tr>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadScheduleView);
+  </script>
 
 </html>

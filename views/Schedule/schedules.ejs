@@ -12,7 +12,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-    <style>
+    
+    <script src="/js/auth-jwt.js"></script>
+   <style>
     html,
     body {
         height: 100%;
@@ -202,44 +204,90 @@
     <div class="main-content">
         <div class="title-and-button-container">
         <h1 class="modern-table-title no-margin">Schedule</h1>
-        <% if (user && (user.role === 'admin' || user.role === 'staff')) { %>
-            <div class="add-schedule-button-container">
-                <a href="/schedules/new" class="modern-btn-primary">
-                    <i class="fas fa-plus-circle mr-2"></i> Add Schedule
-                </a>
-            </div>
-        <% } %>
+        <div class="add-schedule-button-container" id="addScheduleBtn" style="display:none;">
+            <a href="/schedules/new" class="modern-btn-primary">
+                <i class="fas fa-plus-circle mr-2"></i> Add Schedule
+            </a>
+        </div>
         </div>
 
-        <div class="schedule-list">
-            <% schedules.forEach(schedule => { %>
-                <div class="schedule-card">
-                    <div class="schedule-card-header">
-                        <%= schedule.ClassName %>
-                    </div>
-                    <div class="schedule-card-body">
-                        <p><i class="fas fa-chalkboard-teacher"></i> <strong>Teacher:</strong> <%= schedule.TeacherName %></p>
-                        <p><i class="fas fa-calendar-day"></i> <strong>Day:</strong> <%= schedule.DayOfWeek %></p>
-                        <p><i class="fas fa-clock"></i> <strong>Time:</strong> <%= schedule.StartTime %> - <%= schedule.EndTime %></p>
-                        <p><i class="fas fa-map-marker-alt"></i> <strong>Location:</strong> <%= schedule.Location %></p>
-                    </div>
-                    <% if (user && (user.role === 'admin' || user.role === 'staff')) { %>
-                        <div class="schedule-card-footer">
-                            <a href="/schedules/<%= schedule.ScheduleID %>/edit" class="btn-edit">
-                                <i class="fas fa-edit"></i> Edit
-                            </a>
-                            <form action="/schedules/<%= schedule.ScheduleID %>?_method=DELETE" method="POST" style="display:inline;">
-                                <button type="submit" class="btn-delete" onclick="return confirm('Are you sure you want to delete this schedule?');">
-                                    <i class="fas fa-trash"></i> Delete
-                                </button>
-                            </form>
-                        </div>
-                    <% } %>
-                </div>
-            <% }); %>
+        <div class="schedule-list" id="scheduleList">
+            <div style="text-align: center; padding: 2rem; color: #6b7280;">Loading schedules...</div>
         </div>
     <%- include('../shared/footer.ejs') %>
 </div>
+
+<script>
+async function loadSchedules() {
+  try {
+    const token = localStorage.getItem('jwtToken');
+    const decoded = JSON.parse(atob(token.split('.')[1]));
+    const userRole = decoded.role;
+    
+    // Show add button if admin or staff
+    if (userRole === 'admin' || userRole === 'staff') {
+      document.getElementById('addScheduleBtn').style.display = 'block';
+    }
+    
+    const response = await fetch('/api/schedules');
+    if (!response.ok) throw new Error('Failed to load schedules');
+    const data = await response.json();
+    const schedules = data.schedules || [];
+    
+    const container = document.getElementById('scheduleList');
+    
+    if (!schedules || schedules.length === 0) {
+      container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #6b7280;">No schedules found</div>';
+      return;
+    }
+    
+    container.innerHTML = schedules.map(schedule => `
+      <div class="schedule-card">
+        <div class="schedule-card-header">
+          ${schedule.class_name}
+        </div>
+        <div class="schedule-card-body">
+          <p><i class="fas fa-chalkboard-teacher"></i> <strong>Teacher:</strong> ${schedule.teacher_name}</p>
+          <p><i class="fas fa-calendar-day"></i> <strong>Day:</strong> ${schedule.day_of_week}</p>
+          <p><i class="fas fa-clock"></i> <strong>Time:</strong> ${schedule.formatted_start_time} - ${schedule.formatted_end_time}</p>
+          <p><i class="fas fa-map-marker-alt"></i> <strong>Course:</strong> ${schedule.course_name}</p>
+        </div>
+        ${(userRole === 'admin' || userRole === 'staff') ? `
+          <div class="schedule-card-footer">
+            <a href="/schedules/${schedule.id}/edit" class="btn-edit">
+              <i class="fas fa-edit"></i> Edit
+            </a>
+            <button onclick="deleteSchedule(${schedule.id})" class="btn-delete">
+              <i class="fas fa-trash"></i> Delete
+            </button>
+          </div>
+        ` : ''}
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('Error loading schedules:', error);
+    document.getElementById('scheduleList').innerHTML = 
+      '<div style="text-align: center; padding: 2rem; color: #ef4444;">Error loading schedules</div>';
+  }
+}
+
+async function deleteSchedule(scheduleId) {
+  if (confirm('Are you sure you want to delete this schedule?')) {
+    try {
+      const response = await fetch(`/api/schedules/${scheduleId}`, { method: 'DELETE' });
+      if (response.ok) {
+        loadSchedules();
+      } else {
+        alert('Failed to delete schedule');
+      }
+    } catch (error) {
+      alert('Error deleting schedule');
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadSchedules);
+</script>
 </body>
 
 </html>

@@ -12,7 +12,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-    <style>
+    <script src="/js/auth-jwt.js"></script>
+        <style>
         html, body {
             height: 100%;
             margin: 0;
@@ -238,39 +239,9 @@
           </tr>
         </thead>
         <tbody id="courseTableBody">
-          <% if (courses && courses.length > 0) { %>
-            <% courses.forEach(course => { %>
-              <tr class="course-row">
-                <td><%= course.course_name %></td>
-                <td><%= new Date(course.start_date).toLocaleDateString() %></td>
-                <td style="max-width:200px;white-space:normal;"><%= course.description %></td>
-                <td><%= course.teacher_name %></td>
-                <td><%= course.weekly_schedule %></td>
-                <td><%= course.start_time %> - <%= course.end_time %></td>
-                <td><%= course.enrolled_count || 0 %> students</td>
-                <td><span class="font-semibold text-green-600"><%= course.tuition_fee?.toLocaleString() %> VND</span></td>
-                <td class="actions">
-                  <form action="/enroll-course" method="POST" style="display:inline;">
-                    <input type="hidden" name="class_id" value="<%= course.class_id %>">
-                    <button type="submit"
-                      class="modern-btn-primary"
-                      onclick="return confirm('Are you sure you want to enroll in this course?')">
-                      <i class="fas fa-user-plus"></i>
-                    </button>
-                  </form>
-                </td>
-              </tr>
-            <% }) %>
-          <% } else { %>
-            <tr>
-              <td colspan="9" style="height:260px; padding:0;">
-                <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-                  <i class="fas fa-book-open text-4xl mb-3"></i>
-                  <div>No courses available.</div>
-                </div>
-              </td>
-            </tr>
-          <% } %>
+          <tr>
+            <td colspan="9" style="text-align:center; color:#888; padding:2rem;">Loading courses...</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -280,6 +251,93 @@
 <script src="/js/script.js"></script>
 <script src="/js/main.js"></script>
 <script>
+  let allCourses = [];
+  
+  async function loadAvailableCourses() {
+    try {
+      const response = await fetch('/api/available-courses', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) throw new Error('Failed to load courses');
+      
+      const data = await response.json();
+      allCourses = data.courses || [];
+      renderCourses(allCourses);
+    } catch (error) {
+      console.error('Error loading courses:', error);
+      const tbody = document.getElementById('courseTableBody');
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#ef4444; padding:2rem;">Error loading courses: ${error.message}</td></tr>`;
+    }
+  }
+  
+  function renderCourses(courses) {
+    const tbody = document.getElementById('courseTableBody');
+    
+    if (courses.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="height:260px; padding:0;">
+            <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+              <i class="fas fa-book-open text-4xl mb-3"></i>
+              <div>No courses available.</div>
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+    
+    tbody.innerHTML = courses.map(course => `
+      <tr class="course-row" data-name="${course.course_name}" data-date="${new Date(course.start_date).getTime()}" data-price="${course.tuition_fee || 0}">
+        <td>${course.course_name}</td>
+        <td>${new Date(course.start_date).toLocaleDateString()}</td>
+        <td style="max-width:200px;white-space:normal;">${course.description || ''}</td>
+        <td>${course.teacher_name}</td>
+        <td>${course.weekly_schedule || 'N/A'}</td>
+        <td>${course.start_time || ''} - ${course.end_time || ''}</td>
+        <td>${course.enrolled_count || 0} students</td>
+        <td><span class="font-semibold text-green-600">${(course.tuition_fee || 0).toLocaleString()} VND</span></td>
+        <td class="actions">
+          <button onclick="enrollCourse(${course.class_id})" 
+            class="modern-btn-primary" 
+            style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+            <i class="fas fa-user-plus"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+  
+  async function enrollCourse(classId) {
+    if (!confirm('Are you sure you want to enroll in this course?')) return;
+    
+    try {
+      const response = await fetch('/api/enroll-course', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ class_id: classId })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to enroll');
+      }
+      
+      const data = await response.json();
+      alert('Enrolled successfully!');
+      if (data.redirect) {
+        window.location.href = data.redirect;
+      } else {
+        loadAvailableCourses();
+      }
+    } catch (error) {
+      console.error('Enrollment error:', error);
+      alert('Error: ' + error.message);
+    }
+  }
+  
   // Search functionality
   document.getElementById('searchInput').addEventListener('input', function (e) {
     const searchText = e.target.value.toLowerCase();
@@ -292,24 +350,20 @@
 
   // Sorting functionality
   document.getElementById('sortSelect').addEventListener('change', function (e) {
-    const table = document.getElementById('courseTableBody');
-    const rows = Array.from(document.querySelectorAll('.course-row'));
-    rows.sort((a, b) => {
-      if (e.target.value === 'name') {
-        return a.cells[0].textContent.localeCompare(b.cells[0].textContent);
-      } else if (e.target.value === 'date') {
-        // Sort by start date (column 1)
-        const dateA = new Date(a.cells[1].textContent);
-        const dateB = new Date(b.cells[1].textContent);
-        return dateA - dateB;
-      } else if (e.target.value === 'price') {
-        const priceA = parseFloat(a.cells[7].textContent.replace(/[^0-9.]/g, '')) || 0;
-        const priceB = parseFloat(b.cells[7].textContent.replace(/[^0-9.]/g, '')) || 0;
-        return priceA - priceB;
-      }
-    });
-    rows.forEach(row => table.appendChild(row));
+    const sortedCourses = [...allCourses];
+    
+    if (e.target.value === 'name') {
+      sortedCourses.sort((a, b) => a.course_name.localeCompare(b.course_name));
+    } else if (e.target.value === 'date') {
+      sortedCourses.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+    } else if (e.target.value === 'price') {
+      sortedCourses.sort((a, b) => (a.tuition_fee || 0) - (b.tuition_fee || 0));
+    }
+    
+    renderCourses(sortedCourses);
   });
+  
+  document.addEventListener('DOMContentLoaded', loadAvailableCourses);
 </script>
 
 <footer class="relative bg-blueGray-200 pt-8 pb-6">

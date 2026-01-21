@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://demos.creative-tim.com/notus-js/assets/styles/tailwind.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet" href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-
+    <script src="/js/auth-jwt.js"></script>
     <style>
 
         main, .modern-container {
@@ -119,11 +119,9 @@
                 <i class="fas fa-file-alt"></i> <span>Exam List</span>
             </div>
 
-            <% if (user.role === 'teacher') { %>
-            <a href="/exams/new" class="modern-btn-primary">
+            <a href="/exams/new" class="modern-btn-primary" id="newExamBtn" style="display:none;">
                 <i class="fas fa-plus"></i> New Exam
             </a>
-            <% } %>
         </div>
 
        
@@ -149,64 +147,12 @@
                     </tr>
                 </thead>
 
-                <tbody>
-                    <% if (!exams || exams.length === 0) { %>
+                <tbody id="examsTableBody">
                     <tr>
-                        <td colspan="<%= user.role === 'student' ? 9 : 5 %>" style="text-align:center; color:#888; padding:1.6rem;">
-                            No exams found
+                        <td colspan="9" style="text-align:center; color:#888; padding:1.6rem;">
+                            Loading exams...
                         </td>
                     </tr>
-                    <% } else { %>
-                    <% exams.forEach(exam => { %>
-                    <tr>
-                        <td><%= exam.exam_code %></td>
-                        <td><%= exam.exam_title %></td>
-                        <td><%= exam.teacher_name %></td>
-                        <td><%= exam.duration_min %> min</td>
-
-                        <% if (user.role === 'student') { %>
-                        <td><%= exam.open_at ? new Date(exam.open_at).toLocaleString() : '—' %></td>
-                        <td><%= exam.close_at ? new Date(exam.close_at).toLocaleString() : '—' %></td>
-
-                        <td>
-                            <span class="badge <%= exam.exam_status === 'Available' ? 'bg-green-500' : exam.exam_status === 'Completed' ? 'bg-gray-400' : 'bg-blue-500' %>">
-                                <%= exam.exam_status %>
-                            </span>
-                        </td>
-
-                        <td>
-                            <% if (exam.total_score !== null && exam.total_points !== null) { %>
-                                <%= exam.total_score %> / <%= exam.total_points %>
-                            <% } else { %>N/A<% } %>
-                        </td>
-
-                        <td>
-                            <% if (exam.max_attempts) { %>
-                                <%= Math.max(0, exam.max_attempts - (exam.attempt_count || 0)) %> / <%= exam.max_attempts %>
-                            <% } else { %>Unlimited<% } %>
-                        </td>
-                        <% } %>
-
-                        <td class="actions">
-                            <% if (user.role === 'student' && exam.exam_status === 'Available') { %>
-                                <a href="/exams/<%= exam.assignment_id %>/take" class="modern-btn-primary" style="padding:0.4rem 0.8rem; font-size:0.9rem;">
-                                    Start
-                                </a>
-                            <% } %>
-
-                            <% if (user.role === 'teacher') { %>
-                                <a href="/exams/<%= exam.exam_id %>/edit" title="Edit" style="color:#2375D8;"><i class="fas fa-edit"></i></a>
-                                <a href="/exams/<%= exam.exam_id %>/assign" title="Assign" style="color:#2375D8;"><i class="fas fa-users"></i></a>
-                                <button onclick="deleteExam('<%= exam.exam_id %>')" title="Delete" style="background:none;border:none;color:#ef4444;cursor:pointer;"><i class="fas fa-trash"></i></button>
-                            <% } %>
-
-                            <% if (user.role === 'admin') { %>
-                                <button onclick="deleteExam('<%= exam.exam_id %>')" title="Delete" style="background:none;border:none;color:#ef4444;cursor:pointer;"><i class="fas fa-trash"></i></button>
-                            <% } %>
-                        </td>
-                    </tr>
-                    <% }) %>
-                    <% } %>
                 </tbody>
             </table>
         </div>
@@ -215,16 +161,103 @@
 </main>
 
 <script>
+// Get user role from token
+function getUserRole() {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.role ? payload.role.toLowerCase() : 'student';
+    } catch (e) {
+      console.error('Error parsing token:', e);
+    }
+  }
+  return 'student';
+}
+
+// Load exams from API
+async function loadExams() {
+  try {
+    const response = await fetch('/api/exams?t=' + Date.now());
+    if (!response.ok) throw new Error('Failed to load exams');
+    const data = await response.json();
+    
+    const tbody = document.getElementById('examsTableBody');
+    const userRole = getUserRole();
+    
+    if (!data.exams || data.exams.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#888; padding:1.6rem;">No exams found</td></tr>`;
+      return;
+    }
+    
+    tbody.innerHTML = data.exams.map(exam => {
+      let row = `
+        <tr>
+          <td>${exam.exam_code}</td>
+          <td>${exam.exam_title}</td>
+          <td>${exam.teacher_name}</td>
+          <td>${exam.duration_min} min</td>
+      `;
+      
+      if (userRole === 'student') {
+        row += `
+          <td>${exam.open_at ? new Date(exam.open_at).toLocaleString() : '—'}</td>
+          <td>${exam.close_at ? new Date(exam.close_at).toLocaleString() : '—'}</td>
+          <td>
+            <span class="badge ${exam.exam_status === 'Available' ? 'bg-green-500' : exam.exam_status === 'Completed' ? 'bg-gray-400' : 'bg-blue-500'}">
+              ${exam.exam_status}
+            </span>
+          </td>
+          <td>${exam.total_score !== null && exam.total_points !== null ? `${exam.total_score} / ${exam.total_points}` : 'N/A'}</td>
+          <td>${exam.max_attempts ? `${Math.max(0, exam.max_attempts - (exam.attempt_count || 0))} / ${exam.max_attempts}` : 'Unlimited'}</td>
+        `;
+      }
+      
+      row += `<td class="actions">`;
+      
+      if (userRole === 'student' && exam.exam_status === 'Available') {
+        row += `<a href="/exams/${exam.assignment_id}/take" class="modern-btn-primary" style="padding:0.4rem 0.8rem; font-size:0.9rem;">Start</a>`;
+      } else if (userRole === 'teacher') {
+        row += `
+          <a href="/exams/${exam.exam_id}/edit" title="Edit" style="color:#2375D8; cursor:pointer;"><i class="fas fa-edit"></i></a>
+          <a href="/exams/${exam.exam_id}/assign" title="Assign" style="color:#2375D8; cursor:pointer;"><i class="fas fa-users"></i></a>
+          <button onclick="deleteExam('${exam.exam_id}')" title="Delete" style="background:none;border:none;color:#ef4444;cursor:pointer;"><i class="fas fa-trash"></i></button>
+        `;
+      } else if (userRole === 'admin') {
+        row += `<button onclick="deleteExam('${exam.exam_id}')" title="Delete" style="background:none;border:none;color:#ef4444;cursor:pointer;"><i class="fas fa-trash"></i></button>`;
+      }
+      
+      row += `</td></tr>`;
+      return row;
+    }).join('');
+  } catch (error) {
+    console.error('Error loading exams:', error);
+    document.getElementById('examsTableBody').innerHTML = `<tr><td colspan="9" style="text-align:center; color:#ef4444;">Error loading exams</td></tr>`;
+  }
+}
+
 function deleteExam(id) {
     if (!confirm("Delete exam?")) return;
-    fetch(`/exams/${id}`, { method: "DELETE" })
+    fetch(`/api/exams/${id}`, { method: "DELETE" })
         .then(res => {
             if (!res.ok) throw new Error('Delete failed');
             return res.json();
         })
-        .then(() => location.reload())
+        .then(() => loadExams())
         .catch(() => alert('Could not delete exam.'));
 }
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+  const userRole = getUserRole();
+  
+  // Show New Exam button for teachers
+  if (userRole === 'teacher') {
+    document.getElementById('newExamBtn').style.display = 'inline-flex';
+  }
+  
+  loadExams();
+});
 </script>
 
 <%- include('../shared/footer') %>

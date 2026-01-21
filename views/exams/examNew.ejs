@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-
+    <script src="/js/auth-jwt.js"></script>
     <style>
         /* Modern card styles borrowed from addClass layout */
         .modern-container {
@@ -131,13 +131,15 @@
 document.getElementById('examForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
-    const formData = new FormData(this);
-    const data = {};
-    formData.forEach((value, key) => {
-        data[key] = value;
-    });
+    const data = {
+        exam_title: document.getElementById('exam_title').value.trim(),
+        description: document.getElementById('description').value.trim(),
+        duration_minutes: parseInt(document.getElementById('duration_minutes').value),
+        total_marks: parseInt(document.getElementById('total_marks').value),
+        passing_marks: document.getElementById('passing_marks').value ? parseInt(document.getElementById('passing_marks').value) : null
+    };
 
-    fetch('/exam/new', {
+    fetch('/api/exam/new', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -146,8 +148,9 @@ document.getElementById('examForm').addEventListener('submit', function(e) {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.message === "Exam created successfully") {
-            window.location.href = '/exams';
+        if (data.message === "Exam created successfully" && data.examId) {
+            // Redirect to edit page with questions
+            window.location.href = `/exams/${data.examId}/edit`;
         } else {
             alert(data.message || 'Error creating exam');
         }

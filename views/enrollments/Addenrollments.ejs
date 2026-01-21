@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- DataTables CSS -->
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.css">
+    <script src="/js/auth-jwt.js"></script>
     <style>
         .modern-container {
             max-width: 1200px;
@@ -238,16 +239,13 @@
             <% }); %>
         </div>
         <% } %>
-        <form action="/enrollments" method="POST" id="enrollmentForm">
+        <form id="enrollmentForm">
             <div class="modern-section">
                 <div class="modern-section-title">Student Information</div>
                 <div class="modern-form-group">
                     <label for="student_id"><i class="fas fa-user mr-2"></i>Student</label>
                     <select name="student_id" id="student_id" class="modern-form-control" required>
                         <option value="">Select Student</option>
-                        <% students.forEach(student => { %>
-                        <option value="<%= student.id %>" data-unpaid="<%= student.hasUnpaidFees %>"><%= student.full_name %></option>
-                        <% }) %>
                     </select>
                     <div id="studentWarning" class="warning"></div>
                 </div>
@@ -258,12 +256,6 @@
                     <label for="class_id"><i class="fas fa-chalkboard mr-2"></i>Class</label>
                     <select id="class_id" name="class_id" class="modern-form-control" required>
                         <option value="">Select Class</option>
-                        <% classes.forEach(cls => { %>
-                        <option value="<%= cls.id %>" data-schedule="<%= cls.schedule %>" data-time="<%= cls.time %>"
-                            data-fee="<%= cls.tuition_fee %>" data-teacher="<%= cls.teacher_name %>" data-enrolled="<%= cls.current_enrollments %>" data-status="<%= cls.status %>">
-                            <%= cls.class_name %>
-                        </option>
-                        <% }) %>
                     </select>
                 </div>
                 <div id="classDetails" class="class-details" style="display:none;">
@@ -295,13 +287,6 @@
                     </div>
                 </div>
             </div>
-            <div class="modern-section">
-                <div class="modern-section-title">Enrollment Date</div>
-                <div class="modern-form-group">
-                    <label for="enrollment_date"><i class="fas fa-calendar-alt mr-2"></i>Enrollment Date</label>
-                    <input type="date" id="enrollment_date" name="enrollment_date" required class="modern-form-control" />
-                </div>
-            </div>
             <button type="submit" class="modern-btn-primary" style="width:100%;">
                 <i class="fas fa-check-circle mr-2"></i>
                 Complete Enrollment
@@ -311,63 +296,122 @@
 </main>
 <script src="/js/script.js"></script>
 <script src="/js/main.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const studentSelect = document.getElementById('student_id');
-            const classSelect = document.getElementById('class_id');
-            const studentWarning = document.getElementById('studentWarning');
-            const classDetails = document.getElementById('classDetails');
-            const scheduleInfo = document.getElementById('scheduleInfo');
-            const timeInfo = document.getElementById('timeInfo');
-            const feeInfo = document.getElementById('feeInfo');
-            const teacherInfo = document.getElementById('teacherInfo');
-            const enrollmentInfo = document.getElementById('enrollmentInfo');
-            const statusBadge = document.getElementById('statusBadge');
+<script>
+    let allStudents = [];
+    let allClasses = [];
+    
+    async function loadFormData() {
+        try {
+            const response = await fetch('/api/enrollments/new', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
             
-            studentSelect.addEventListener('change', function () {
-                const selected = studentSelect.options[studentSelect.selectedIndex];
-                if (selected && selected.dataset.unpaid === 'true') {
-                    studentWarning.textContent = 'Warning: Student has unpaid fees';
-                } else {
-                    studentWarning.textContent = '';
-                }
-            });
-            classSelect.addEventListener('change', function () {
-                const selected = classSelect.options[classSelect.selectedIndex];
-                if (selected && selected.value) {
-                    classDetails.style.display = '';
-                    scheduleInfo.textContent = selected.dataset.schedule || '';
-                    timeInfo.textContent = selected.dataset.time || '';
-                    feeInfo.textContent = selected.dataset.fee ? `$${selected.dataset.fee}` : '';
-                    teacherInfo.textContent = selected.dataset.teacher || '';
-                    enrollmentInfo.textContent = selected.dataset.enrolled || '';
-                    const status = selected.dataset.status || '';
-                    let badge = '';
-                    if (status === 'Active') badge = '<span class="status-badge status-active">Active</span>';
-                    else if (status === 'Upcoming') badge = '<span class="status-badge status-upcoming">Upcoming</span>';
-                    else if (status === 'Ended') badge = '<span class="status-badge status-ended">Ended</span>';
-                    else badge = `<span class="status-badge">${status}</span>`;
-                    statusBadge.innerHTML = badge;
-                } else {
-                    classDetails.style.display = 'none';
-                }
-            });
-            document.querySelector('form').addEventListener('submit', function (e) {
-                const studentSelected = studentSelect.options[studentSelect.selectedIndex];
-                const classSelected = classSelect.options[classSelect.selectedIndex];
-                if (studentSelected && studentSelected.dataset.unpaid === 'true') {
-                    e.preventDefault();
-                    alert('Cannot enroll: Student has unpaid fees.');
-                    return;
-                }
-                if (classSelected && classSelected.dataset.status === 'Ended') {
-                    e.preventDefault();
-                    alert('Cannot enroll: Class has ended.');
-                    return;
-                }
-            });
+            if (!response.ok) throw new Error('Failed to load form data');
+            
+            const data = await response.json();
+            allStudents = data.students || [];
+            allClasses = data.classes || [];
+            
+            const studentSelect = document.getElementById('student_id');
+            studentSelect.innerHTML = '<option value="">Select Student</option>' + 
+                allStudents.map(s => `<option value="${s.id}" data-unpaid="${s.hasUnpaidFees}">${s.full_name}</option>`).join('');
+            
+            const classSelect = document.getElementById('class_id');
+            classSelect.innerHTML = '<option value="">Select Class</option>' + 
+                allClasses.map(c => `<option value="${c.id}" data-schedule="${c.schedule}" data-time="${c.timeSlot}" data-fee="${c.tuition_fee}" data-teacher="${c.teacher_name}" data-enrolled="${c.enrolled_count}" data-status="${c.status}">${c.class_name}</option>`).join('');
+            
+        } catch (error) {
+            console.error('Error loading form data:', error);
+            alert('Failed to load form data: ' + error.message);
+        }
+    }
+    
+    document.addEventListener('DOMContentLoaded', function () {
+        loadFormData();
+        
+        const studentSelect = document.getElementById('student_id');
+        const classSelect = document.getElementById('class_id');
+        const studentWarning = document.getElementById('studentWarning');
+        const classDetails = document.getElementById('classDetails');
+        const scheduleInfo = document.getElementById('scheduleInfo');
+        const timeInfo = document.getElementById('timeInfo');
+        const feeInfo = document.getElementById('feeInfo');
+        const teacherInfo = document.getElementById('teacherInfo');
+        const enrollmentInfo = document.getElementById('enrollmentInfo');
+        const statusBadge = document.getElementById('statusBadge');
+        
+        studentSelect.addEventListener('change', function () {
+            const selected = studentSelect.options[studentSelect.selectedIndex];
+            if (selected && selected.dataset.unpaid === 'true') {
+                studentWarning.textContent = 'Warning: Student has unpaid fees';
+            } else {
+                studentWarning.textContent = '';
+            }
         });
-    </script>
+        
+        classSelect.addEventListener('change', function () {
+            const selected = classSelect.options[classSelect.selectedIndex];
+            if (selected && selected.value) {
+                classDetails.style.display = '';
+                scheduleInfo.textContent = selected.dataset.schedule || '';
+                timeInfo.textContent = selected.dataset.time || '';
+                feeInfo.textContent = selected.dataset.fee ? selected.dataset.fee.toLocaleString() + ' VND' : '';
+                teacherInfo.textContent = selected.dataset.teacher || '';
+                enrollmentInfo.textContent = selected.dataset.enrolled || '';
+                const status = selected.dataset.status || '';
+                let badge = '';
+                if (status === 'Active') badge = '<span class="status-badge status-active">Active</span>';
+                else if (status === 'Upcoming') badge = '<span class="status-badge status-upcoming">Upcoming</span>';
+                else if (status === 'Ended') badge = '<span class="status-badge status-ended">Ended</span>';
+                else badge = `<span class="status-badge">${status}</span>`;
+                statusBadge.innerHTML = badge;
+            } else {
+                classDetails.style.display = 'none';
+            }
+        });
+        
+        document.getElementById('enrollmentForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            
+            const studentId = studentSelect.value;
+            const classId = classSelect.value;
+            const studentSelected = studentSelect.options[studentSelect.selectedIndex];
+            const classSelected = classSelect.options[classSelect.selectedIndex];
+            
+            if (studentSelected && studentSelected.dataset.unpaid === 'true') {
+                alert('Cannot enroll: Student has unpaid fees.');
+                return;
+            }
+            if (classSelected && classSelected.dataset.status === 'Ended') {
+                alert('Cannot enroll: Class has ended.');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/enrollments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ student_id: parseInt(studentId), class_id: parseInt(classId) })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to create enrollment');
+                }
+                
+                const data = await response.json();
+                alert('Enrollment created successfully!');
+                if (data.redirect) {
+                    window.location.href = data.redirect;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error: ' + error.message);
+            }
+        });
+    });
+</script>
 
     <footer class="relative bg-blueGray-200 pt-8 pb-6">
         <div class="container mx-auto px-4">

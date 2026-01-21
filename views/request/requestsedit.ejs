@@ -12,7 +12,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-    <style>
+    
+    <script src="/js/auth-jwt.js"></script>
+   <style>
         .modern-container {
             max-width: 1200px;
             margin: 48px auto;
@@ -87,24 +89,19 @@
         <form id="editForm">
             <div class="modern-form-group">
                 <label>Request Type</label>
-                <input type="text" class="modern-form-control" value="<%= request.type_name %>" readonly>
+                <input type="text" id="typeName" class="modern-form-control" readonly>
             </div>
 
             <div class="modern-form-group">
                 <label for="classId">Related Class (Optional)</label>
                 <select name="classId" id="classId" class="modern-form-control">
                     <option value="">None</option>
-                    <% classes.forEach(function(class_) { %>
-                    <option value="<%= class_.id %>" <%= request.class_id === class_.id ? 'selected' : '' %>>
-                        <%= class_.class_name %>
-                    </option>
-                    <% }); %>
                 </select>
             </div>
 
             <div class="modern-form-group">
                 <label for="details">Details</label>
-                <textarea name="details" id="details" rows="5" class="modern-form-control" required><%= request.description %></textarea>
+                <textarea name="details" id="details" rows="5" class="modern-form-control" required></textarea>
             </div>
 
             <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:2rem;">
@@ -116,27 +113,60 @@
 </main>
 
     <script>
-        document.getElementById('editForm').addEventListener('submit', async function (e) {
-            e.preventDefault();
-            try {
-                const response = await fetch('/requestEdit/<%= request.request_id %>', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        details: this.details.value,
-                        classId: this.classId.value || null
-                    })
-                });
+    const requestId = window.location.pathname.split('/')[2];
+    
+    async function loadRequestData() {
+      try {
+        const response = await fetch(`/api/requests/${requestId}/edit`);
+        if (!response.ok) throw new Error('Failed to load request');
+        const data = await response.json();
+        
+        const request = data.request;
+        const classes = data.classes || [];
+        
+        // Set request type (read-only)
+        document.getElementById('typeName').value = request.type_name;
+        
+        // Populate classes
+        const classSelect = document.getElementById('classId');
+        classSelect.innerHTML = '<option value="">None</option>' +
+          classes.map(c => `
+            <option value="${c.id}" ${c.id === request.class_id ? 'selected' : ''}>
+              ${c.class_name}
+            </option>
+          `).join('');
+        
+        // Set details
+        document.getElementById('details').value = request.description;
+      } catch (error) {
+        console.error('Error loading request:', error);
+        alert('Error loading request data');
+      }
+    }
+    
+    document.getElementById('editForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        try {
+            const response = await fetch(`/api/requestEdit/${requestId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    details: document.getElementById('details').value,
+                    classId: document.getElementById('classId').value || null
+                })
+            });
 
-                if (response.ok) {
-                    window.location.href = '/requests';
-                } else {
-                    alert((await response.json()).error || 'Failed to update request');
-                }
-            } catch (error) {
-                alert('Error updating request');
+            if (response.ok) {
+                window.location.href = '/requests';
+            } else {
+                alert((await response.json()).error || 'Failed to update request');
             }
-        });
+        } catch (error) {
+            alert('Error updating request');
+        }
+    });
+    
+    document.addEventListener('DOMContentLoaded', loadRequestData);
     </script>
 
 <%- include('../shared/footer.ejs') %>

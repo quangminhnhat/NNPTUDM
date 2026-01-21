@@ -10,7 +10,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-</head>
+    <script src="/js/auth-jwt.js"></script>
+    </head>
 
 <body>
    <%- include('../shared/header.ejs') %>
@@ -109,36 +110,20 @@
     <div class="modern-container">
         <div class="modern-header">
             <div class="modern-title">Edit User</div>
-            <% if (user.role === 'admin' && user.id !== editUser.id) { %>
-                <a href="/users" class="modern-btn-primary" style="font-size:1rem;padding:0.5rem 1.2rem;">
-                    <i class="fas fa-arrow-left"></i> Back to Users
-                </a>
-            <% } else { %>
-                <a href="/profile" class="modern-btn-primary" style="font-size:1rem;padding:0.5rem 1.2rem;">
-                    <i class="fas fa-user"></i> View Profile
-                </a>
-            <% } %>
+            <a href="/" class="modern-btn-primary" id="backBtn" style="font-size:1rem;padding:0.5rem 1.2rem; display:none;">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
         </div>
 
-        <% if (locals.messages && messages.error && messages.error.length > 0) { %>
-            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
-                <p class="font-bold">Error</p>
-                <p><%= messages.error[0] %></p>
-            </div>
-        <% } %>
-        <% if (locals.messages && messages.success && messages.success.length > 0) { %>
-            <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6" role="alert">
-                <p class="font-bold">Success</p>
-                <p><%= messages.success[0] %></p>
-            </div>
-        <% } %>
+        <div id="errorMessage" style="display:none;" class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6"></div>
+        <div id="successMessage" style="display:none;" class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6"></div>
 
-        <form action="/users/<%= editUser.id %>" method="POST" enctype="multipart/form-data" class="space-y-6">
+        <form id="editForm" enctype="multipart/form-data" class="space-y-6">
             <div class="modern-section">
                 <div class="modern-section-title">Profile Picture</div>
                 <div class="flex items-center space-x-6">
                     <img 
-                        src="<%= editUser.profile_pic ? '/' + editUser.profile_pic.replace(/\\/g, '/') : '/uploads/profile_pic/default_profile_pic.png' %>" 
+                        id="currentProfilePic"
                         alt="Current Profile Picture" 
                         class="rounded-full h-24 w-24 object-cover border-2 border-gray-300">
                     <div>
@@ -152,16 +137,15 @@
                 <div class="modern-info-grid">
                     <div class="modern-info-item">
                         <label class="modern-info-label">Username</label>
-                        <input type="text" name="username" value="<%= editUser.username %>" required
+                        <input type="text" name="username" id="usernameInput" required
                             class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 modern-info-value">
                     </div>
                     <div class="modern-info-item">
                         <label class="modern-info-label">Role</label>
-                        <select name="role" class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 modern-info-value <%= (user.role !== 'admin' && user.id === editUser.id) ? 'bg-gray-200 cursor-not-allowed' : '' %>"
-                            <%= (user.role !== 'admin' && user.id === editUser.id) ? 'disabled' : '' %>>
-                            <option value="student" <%= editUser.role === 'student' ? 'selected' : '' %>>Student</option>
-                            <option value="teacher" <%= editUser.role === 'teacher' ? 'selected' : '' %>>Teacher</option>
-                            <option value="admin" <%= editUser.role === 'admin' ? 'selected' : '' %> <%= user.role !== 'admin' ? 'disabled' : '' %>>Admin</option>
+                        <select name="role" id="roleSelect" class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 modern-info-value">
+                            <option value="student">Student</option>
+                            <option value="teacher">Teacher</option>
+                            <option value="admin">Admin</option>
                         </select>
                     </div>
                 </div>
@@ -171,27 +155,45 @@
                 <div class="modern-info-grid">
                     <div class="modern-info-item">
                         <label class="modern-info-label">Full Name</label>
-                        <input type="text" name="full_name" value="<%= editUser.full_name %>" required
+                        <input type="text" name="full_name" id="fullNameInput" required
                             class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 modern-info-value">
                     </div>
                     <div class="modern-info-item">
                         <label class="modern-info-label">Email</label>
-                        <input type="email" name="email" value="<%= editUser.email %>" required
+                        <input type="email" name="email" id="emailInput" required
                             class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 modern-info-value">
                     </div>
                     <div class="modern-info-item">
                         <label class="modern-info-label">Phone Number</label>
-                        <input type="text" name="phone_number" value="<%= editUser.phone_number %>" required
+                        <input type="text" name="phone_number" id="phoneNumberInput" required
+                            class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 modern-info-value">
+                    </div>
+                    <div class="modern-info-item">
+                        <label class="modern-info-label">Address</label>
+                        <input type="text" name="address" id="addressInput"
+                            class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 modern-info-value">
+                    </div>
+                    <div class="modern-info-item">
+                        <label class="modern-info-label">Date of Birth</label>
+                        <input type="date" name="date_of_birth" id="dateOfBirthInput"
+                            class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 modern-info-value">
+                    </div>
+                </div>
+            </div>
+            <div id="salarySection" style="display:none;" class="modern-section">
+                <div class="modern-section-title">Teacher Information</div>
+                <div class="modern-info-grid">
+                    <div class="modern-info-item">
+                        <label class="modern-info-label">Salary</label>
+                        <input type="number" name="salary" id="salaryInput" step="0.01"
                             class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 modern-info-value">
                     </div>
                 </div>
             </div>
             <div class="flex justify-between items-center mt-6">
-                <% if (user.role==='admin' ) { %>
-                <a href="/users" class="modern-btn-primary" style="background:#f7fafc;color:#2375D8;border:1px solid #2375D8;box-shadow:none;">
-                    <i class="fas fa-arrow-left"></i> Back to users
+                <a href="/" id="backLink" class="modern-btn-primary" style="background:#f7fafc;color:#2375D8;border:1px solid #2375D8;box-shadow:none;">
+                    <i class="fas fa-arrow-left"></i> Back
                 </a>
-                <% } %>
                 <button type="submit" class="modern-btn-primary">
                     <i class="fas fa-save"></i> Save Changes
                 </button>
@@ -269,4 +271,107 @@
     </footer>
     <script src="/js/script.js"></script>
     <script src="/js/main.js"></script>
-</body>
+    <script>
+        const userId = window.location.pathname.split('/')[2];
+        
+        async function loadUserData() {
+            try {
+                const response = await fetch(`/api/users/${userId}/edit`);
+                if (!response.ok) throw new Error('Failed to load user data');
+                const data = await response.json();
+                const editUser = data.editUser;
+                const user = data.user;
+                
+                // Set profile picture
+                const profilePic = editUser.profile_pic ? '/' + editUser.profile_pic.replace(/\\/g, '/') : '/uploads/profile_pic/default_profile_pic.png';
+                document.getElementById('currentProfilePic').src = profilePic;
+                
+                // Fill form fields
+                document.getElementById('usernameInput').value = editUser.username;
+                document.getElementById('roleSelect').value = editUser.role;
+                document.getElementById('fullNameInput').value = editUser.full_name || '';
+                document.getElementById('emailInput').value = editUser.email || '';
+                document.getElementById('phoneNumberInput').value = editUser.phone_number || '';
+                document.getElementById('addressInput').value = editUser.address || '';
+                document.getElementById('dateOfBirthInput').value = editUser.date_of_birth || '';
+                
+                // Show salary field if teacher
+                if (editUser.role === 'teacher') {
+                    document.getElementById('salarySection').style.display = 'block';
+                    document.getElementById('salaryInput').value = editUser.salary || 0;
+                }
+                
+                // Set role select restrictions
+                const roleSelect = document.getElementById('roleSelect');
+                if (user.role !== 'admin' && user.id === editUser.id) {
+                    roleSelect.disabled = true;
+                    roleSelect.style.backgroundColor = '#e5e7eb';
+                    roleSelect.style.cursor = 'not-allowed';
+                }
+                
+                // Set back button destination
+                const backLink = document.getElementById('backLink');
+                if (user.role === 'admin' && user.id !== editUser.id) {
+                    backLink.href = '/users';
+                    backLink.innerHTML = '<i class="fas fa-arrow-left"></i> Back to Users';
+                } else {
+                    backLink.href = '/profile';
+                    backLink.innerHTML = '<i class="fas fa-user"></i> View Profile';
+                }
+            } catch (error) {
+                console.error('Error loading user data:', error);
+                showError('Failed to load user data');
+            }
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.innerHTML = `<p class="font-bold">Error</p><p>${message}</p>`;
+            errorDiv.style.display = 'block';
+        }
+        
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.innerHTML = `<p class="font-bold">Success</p><p>${message}</p>`;
+            successDiv.style.display = 'block';
+        }
+        
+        document.getElementById('editForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            try {
+                const formData = new FormData(this);
+                
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    showError(error.error || 'Failed to update user');
+                    return;
+                }
+                
+                const result = await response.json();
+                showSuccess('User updated successfully');
+                setTimeout(() => {
+                    window.location.href = result.redirect || '/profile';
+                }, 1500);
+            } catch (error) {
+                console.error('Error updating user:', error);
+                showError('Error updating user');
+            }
+        });
+        
+        document.getElementById('roleSelect').addEventListener('change', function() {
+            const salarySection = document.getElementById('salarySection');
+            if (this.value === 'teacher') {
+                salarySection.style.display = 'block';
+            } else {
+                salarySection.style.display = 'none';
+            }
+        });
+        
+        document.addEventListener('DOMContentLoaded', loadUserData);
+    </script>

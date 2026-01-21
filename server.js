@@ -7,6 +7,8 @@ const express = require("express");
 const app = express();
 const path = require("path");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const sql = require("msnodesqlv8");
 const passport = require("passport");
 const flash = require("express-flash");
@@ -65,6 +67,7 @@ const apiUsersRoutes = require("./routes/api/apiusersRoutes");
 app.use(express.json());
 // Use extended: true so nested form fields like scores[123] are parsed into objects
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 app.use(methodOverride("_method"));
 
 // Session setup
@@ -159,6 +162,29 @@ const swaggerOptions = {
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
+// Middleware to ensure res.locals.user is always defined for views
+app.use((req, res, next) => {
+  if (req.isAuthenticated()) {
+    res.locals.user = req.user;
+  } else {
+    // Check JWT in cookies
+    let token = req.cookies?.authToken;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        res.locals.user = decoded;
+        req.user = decoded;
+        return next();
+      } catch (error) {
+        // Token invalid, continue without user
+      }
+    }
+    // No user authenticated
+    res.locals.user = null;
+  }
+  next();
+});
+
 // Serve uploaded files statically
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -241,27 +267,53 @@ app.post("/api/login", (req, res, next) => {
     if (!user) {
       return res.status(401).json({ error: info.message || "Login failed" });
     }
+    
+    // Generate JWT token
+    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
+    const token = jwt.sign(
+      {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        full_name: user.full_name,
+      },
+      jwtSecret,
+      { expiresIn: '24h' }
+    );
+
+    // For web sessions, also maintain session
     req.logIn(user, (err) => {
       if (err) {
-        return res.status(500).json({ error: "Login failed" });
+        console.error('Session login error:', err);
       }
-      return res.json({
-        success: true,
-        message: "Login successful",
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          role: user.role,
-          full_name: user.full_name,
-          profile_pic: user.profile_pic
-        }
-      });
+    });
+
+    // Set JWT in cookie (before sending response)
+    res.cookie('authToken', token, { 
+      httpOnly: false,
+      maxAge: 24 * 60 * 60 * 1000,
+      sameSite: 'strict'
+    });
+
+    return res.json({
+      success: true,
+      message: "Login successful",
+      token: token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        full_name: user.full_name,
+        profile_pic: user.profile_pic
+      }
     });
   })(req, res, next);
 });
 
 app.delete("/api/logout", (req, res) => {
+  res.clearCookie('authToken');
   req.logOut((err) => {
     if (err) {
       return res.status(500).json({ error: "Logout failed" });
@@ -300,6 +352,7 @@ app.get("/login", checkNotAuthenticated, (req, res) => {
 });
 
 app.delete("/logout", (req, res) => {
+  res.clearCookie('authToken');
   req.logOut((err) => {
     if (err) {
       console.error("Error during logout:", err);

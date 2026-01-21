@@ -11,6 +11,7 @@
     <link href="https://use.fontawesome.com/releases/v5.3.1/css/all.css" rel="stylesheet">
     <!-- Mobile Responsive CSS -->
     <link rel="stylesheet" href="/css/mobile.css">
+    <script src="/js/auth-jwt.js"></script>
     <!--Custom styles-->
     <style>
         html,
@@ -187,7 +188,7 @@
         <%- include('../views/shared/header.ejs') %>
 
         <main>
-            <form action="/register" method="POST" class="modern-form-container" autocomplete="off">
+            <form id="registerForm" class="modern-form-container" autocomplete="off">
                 <legend class="modern-form-title">
                     <i class="fas fa-user-plus mr-2"></i>
                     Registration Form
@@ -225,9 +226,9 @@
                     </label>
                     <select class="modern-form-control" id="subjectSelect" name="subject" required>
                         <option value="" disabled selected>chọn loại tài khoản</option>
-                        <option value="subject1">học sinh</option>
-                        <option value="subject2">giáo viên</option>
-                        <option value="subject3">nhân viên</option>
+                        <option value="student">học sinh</option>
+                        <option value="teacher">giáo viên</option>
+                        <option value="staff">nhân viên</option>
                     </select>
                 </div>
                 <div class="modern-form-group" id="salaryInput" style="display: none;">
@@ -236,7 +237,7 @@
                 </div>
                 <button type="submit" class="modern-btn-primary">
                     <i class="fas fa-user-plus"></i> Submit
-                
+                </button>
             </form>
         </main>
         <footer class="relative bg-blueGray-200 pt-8 pb-6">
@@ -318,12 +319,35 @@
         <script>
             $(document).ready(function () {
                 $('#subjectSelect').change(function () {
-                    if ($(this).val() === 'subject2') {
+                    if ($(this).val() === 'teacher') {
                         $('#salaryInput').show();
                     } else {
                         $('#salaryInput').hide();
                     }
                 });
+            });
+            
+            document.getElementById('registerForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                try {
+                    const formData = new FormData(this);
+                    const response = await fetch('/api/register', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        alert('Registration successful! Redirecting to login...');
+                        window.location.href = '/login';
+                    } else {
+                        alert(data.error || 'Registration failed. Please try again.');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred during registration');
+                }
             });
         </script>
     </body>

@@ -56,6 +56,8 @@ router.get(
       const userId = req.user.id;
       const userRole = req.user.role;
       
+      console.log('Debug: Loading requests for user:', { userId, userRole });
+      
       let requestQuery = `
         SELECT r.request_id, r.description, r.status, r.created_at,
                rt.type_name, c.class_name, u.username, u.full_name, u.role,
@@ -66,14 +68,15 @@ router.get(
         LEFT JOIN classes c ON r.class_id = c.id
       `;
 
+      let whereClause = '';
       let params = {};
       
       // Filter based on role
       if (userRole === 'student') {
-        requestQuery += ` WHERE r.user_id = CAST(@userId AS INT)`;
+        whereClause = ` WHERE r.user_id = CAST(@userId AS INT)`;
         params.userId = userId;
       } else if (userRole === 'teacher') {
-        requestQuery += ` WHERE (r.user_id = CAST(@userId AS INT) OR 
+        whereClause = ` WHERE (r.user_id = CAST(@userId AS INT) OR 
                                 (u.role = 'student' AND EXISTS (
                                   SELECT 1 FROM classes cls
                                   JOIN teachers t ON cls.teacher_id = t.id
@@ -82,21 +85,27 @@ router.get(
                                 )))`;
         params.userId = userId;
       }
+      // Admin sees all requests - no WHERE clause
       
-      requestQuery += ` ORDER BY r.created_at DESC`;
+      requestQuery += whereClause + ` ORDER BY r.created_at DESC`;
 
+      console.log('Debug: Executing request query:', requestQuery);
+      
       const requests = await executeQuery(requestQuery, params);
+      
+      console.log('Debug: Requests fetched:', requests ? requests.length : 0);
 
       res.json({
         user: req.user,
-        requests,
+        requests: requests || [],
         userRole,
         title: "Request List",
       });
     } catch (error) {
       console.error("Error fetching requests:", error);
       res.status(500).json({
-        error: 'Error loading requests'
+        error: 'Error loading requests',
+        message: error.message
       });
     }
   }

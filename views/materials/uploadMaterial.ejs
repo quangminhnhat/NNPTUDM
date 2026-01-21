@@ -12,7 +12,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-    <style>
+    
+    <script src="/js/auth-jwt.js"></script>
+   <style>
         .modern-container {
             max-width: 1200px;
             margin: 48px auto 0 auto;
@@ -114,7 +116,7 @@
  
 
     <main>
-        <form action="/upload-material" method="POST" enctype="multipart/form-data" class="modern-container" autocomplete="off">
+        <form id="uploadForm" class="modern-container" autocomplete="off">
             <legend class="modern-title">
                 <i class="fas fa-upload mr-2"></i>
                 Upload Course Material
@@ -123,11 +125,6 @@
                 <label for="course_id"><i class="fas fa-book mr-2"></i>Select Course</label>
                 <select id="course_id" name="course_id" required class="modern-form-control">
                     <option value="" disabled selected>-- Choose a course --</option>
-                    <% if (typeof courses !== 'undefined' && courses.length > 0) { %>
-                        <% courses.forEach(course => { %>
-                            <option value="<%= course.id %>"><%= course.course_name %></option>
-                        <% }) %>
-                    <% } %>
                 </select>
             </div>
             <div class="modern-form-group">
@@ -212,6 +209,68 @@
     </footer>
     <script src="/js/script.js"></script>
     <script src="/js/main.js"></script>
+    
+    <script>
+    async function loadCourses() {
+      try {
+        const response = await fetch('/api/upload');
+        if (!response.ok) throw new Error('Failed to load courses');
+        const data = await response.json();
+        
+        const select = document.getElementById('course_id');
+        const courses = data.courses || [];
+        
+        if (courses.length === 0) {
+          select.innerHTML = '<option disabled>No courses available</option>';
+          return;
+        }
+        
+        select.innerHTML = '<option value="" disabled selected>-- Choose a course --</option>' +
+          courses.map(course => `<option value="${course.id}">${course.course_name}</option>`).join('');
+      } catch (error) {
+        console.error('Error loading courses:', error);
+        alert('Error loading courses');
+      }
+    }
+    
+    async function uploadMaterial(e) {
+      e.preventDefault();
+      
+      try {
+        const courseId = document.getElementById('course_id').value;
+        const fileInput = document.getElementById('material');
+        
+        if (!courseId || !fileInput.files[0]) {
+          alert('Please select both course and file');
+          return;
+        }
+        
+        const formData = new FormData();
+        formData.append('course_id', courseId);
+        formData.append('material', fileInput.files[0]);
+        
+        const response = await fetch('/api/upload-material', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success || result.message) {
+          alert('Material uploaded successfully');
+          window.location.href = '/materials';
+        } else {
+          throw new Error(result.error || 'Upload failed');
+        }
+      } catch (error) {
+        console.error('Error uploading material:', error);
+        alert('Error uploading material: ' + error.message);
+      }
+    }
+    
+    document.getElementById('uploadForm').addEventListener('submit', uploadMaterial);
+    document.addEventListener('DOMContentLoaded', loadCourses);
+    </script>
 </body>
 
 </html>

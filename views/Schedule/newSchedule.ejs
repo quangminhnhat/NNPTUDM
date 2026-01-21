@@ -12,7 +12,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-    <style>
+    
+    <script src="/js/auth-jwt.js"></script>
+   <style>
         .form-container {
             max-width: 600px;
             margin: 2rem auto;
@@ -184,22 +186,11 @@
             <div class="modern-title" style="margin-bottom: 1.5rem;">
                 <i class="fas fa-calendar-plus"></i> Add New Schedule
             </div>
-            <form method="POST" action="/schedules" id="scheduleForm" class="schedule-form">
+            <form id="scheduleForm" class="schedule-form">
                 <div class="form-group">
                     <label for="class_id">Class:</label>
                     <select id="class_id" name="class_id" class="form-control" required>
-                        <option value="">Select a class</option>
-                        <% classes.forEach(cls => { %>
-                            <option value="<%= cls.id %>"
-                                    data-course-id="<%= cls.course_id %>"
-                                    data-course-start="<%= cls.start_date %>"
-                                    data-course-end="<%= cls.end_date %>"
-                                    data-class-start="<%= cls.formattedStartTime %>"
-                                    data-class-end="<%= cls.formattedEndTime %>">
-                                <%= cls.class_name %> - <%= cls.course_name %> 
-                                (<%= cls.teacher_name %>) - <%= cls.schedule %>
-                            </option>
-                        <% }) %>
+                        <option value="">Loading classes...</option>
                     </select>
                 </div>
 
@@ -322,37 +313,81 @@
     <script src="/js/script.js"></script>
     <script src="/js/main.js"></script>
     <script>
-        // Add client-side validation
-        document.getElementById('scheduleForm').addEventListener('submit', function(e) {
-            const classSelect = document.getElementById('class_id');
-            const selectedOption = classSelect.options[classSelect.selectedIndex];
-            
-            // Set course_id from selected class
-            document.getElementById('course_id').value = selectedOption.dataset.courseId;
-            
-            // Validate schedule date against course dates
-            const scheduleDate = new Date(document.getElementById('schedule_date').value);
-            const courseStart = new Date(selectedOption.dataset.courseStart);
-            const courseEnd = new Date(selectedOption.dataset.courseEnd);
-            
-            if (scheduleDate < courseStart || scheduleDate > courseEnd) {
-                e.preventDefault();
-                alert('Schedule date must be within the course dates: ' + 
-                      courseStart.toLocaleDateString() + ' to ' + 
-                      courseEnd.toLocaleDateString());
+        async function loadFormData() {
+            try {
+                const response = await fetch('/api/schedule/new');
+                if (!response.ok) throw new Error('Failed to load form data');
+                const data = await response.json();
+                
+                const classSelect = document.getElementById('class_id');
+                classSelect.innerHTML = '<option value="">Select a class</option>';
+                
+                data.classes.forEach(cls => {
+                    const option = document.createElement('option');
+                    option.value = cls.id;
+                    option.textContent = `${cls.class_name} - ${cls.course_name} (${cls.teacher_name}) - ${cls.schedule}`;
+                    option.dataset.courseId = cls.course_id;
+                    option.dataset.courseStart = cls.start_date;
+                    option.dataset.courseEnd = cls.end_date;
+                    classSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading form data:', error);
+                alert('Failed to load form data');
             }
-
-            // Validate times
-            const startTime = document.getElementById('start_time').value;
-            const endTime = document.getElementById('end_time').value;
+        }
+        
+        document.getElementById('scheduleForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
             
-            if (startTime >= endTime) {
-                e.preventDefault();
-                alert('End time must be after start time');
+            try {
+                const classSelect = document.getElementById('class_id');
+                const selectedOption = classSelect.options[classSelect.selectedIndex];
+                
+                const scheduleDate = new Date(document.getElementById('schedule_date').value);
+                const courseStart = new Date(selectedOption.dataset.courseStart);
+                const courseEnd = new Date(selectedOption.dataset.courseEnd);
+                
+                if (scheduleDate < courseStart || scheduleDate > courseEnd) {
+                    alert('Schedule date must be within the course dates: ' + 
+                          courseStart.toLocaleDateString() + ' to ' + 
+                          courseEnd.toLocaleDateString());
+                    return;
+                }
+                
+                const startTime = document.getElementById('start_time').value;
+                const endTime = document.getElementById('end_time').value;
+                
+                if (startTime >= endTime) {
+                    alert('End time must be after start time');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('class_id', document.getElementById('class_id').value);
+                formData.append('schedule_date', document.getElementById('schedule_date').value);
+                formData.append('day_of_week', document.getElementById('day_of_week').value);
+                formData.append('start_time', startTime);
+                formData.append('end_time', endTime);
+                
+                const response = await fetch('/api/schedules', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    alert('Schedule created successfully');
+                    window.location.href = '/schedules';
+                } else {
+                    const error = await response.json();
+                    alert(error.message || 'Failed to create schedule');
+                }
+            } catch (error) {
+                console.error('Error creating schedule:', error);
+                alert('Error creating schedule');
             }
         });
 
-        // Update date restrictions when class is selected
         document.getElementById('class_id').addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
             const dateInput = document.getElementById('schedule_date');
@@ -360,22 +395,22 @@
             dateInput.max = selectedOption.dataset.courseEnd;
         });
 
-        // Update day of week when date is selected
         document.getElementById('schedule_date').addEventListener('change', function() {
             const dateValue = this.value;
             if (!dateValue) return;
 
-            // Create a UTC date to avoid timezone issues where the day might be off by one.
             const parts = dateValue.split('-');
             const year = parseInt(parts[0], 10);
-            const month = parseInt(parts[1], 10) - 1; // month is 0-indexed
+            const month = parseInt(parts[1], 10) - 1;
             const day = parseInt(parts[2], 10);
             const selectedDate = new Date(Date.UTC(year, month, day));
 
-            const dayIndex = selectedDate.getUTCDay(); // 0=Sun, 1=Mon, ...
+            const dayIndex = selectedDate.getUTCDay();
             const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             document.getElementById('day_of_week').value = daysOfWeek[dayIndex];
         });
+        
+        document.addEventListener('DOMContentLoaded', loadFormData);
     </script>
 
 </body>

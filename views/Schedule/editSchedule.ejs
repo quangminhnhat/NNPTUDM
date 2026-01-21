@@ -13,7 +13,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-</head>
+    <script src="/js/auth-jwt.js"></script>
+      </head>
 
 <body>
    <%- include('../shared/header.ejs') %>
@@ -26,24 +27,11 @@
       <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
         <h1 class="text-2xl font-bold mb-6">Edit Schedule</h1>
 
-        <% if (messages.error) { %>
-          <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            <%= messages.error %>
-          </div>
-        <% } %>
-
-        <form method="POST" action="/schedules/<%= schedule.id %>" class="space-y-6">
+        <form id="scheduleForm" class="space-y-6">
           <div class="form-group">
             <label for="class_id" class="block text-sm font-medium text-gray-700">Class:</label>
             <select id="class_id" name="class_id" class="mt-1 block w-full rounded-md border-gray-300" required>
-              <% classes.forEach(cls => { %>
-                <option value="<%= cls.id %>" 
-                        <%= cls.id === schedule.class_id ? 'selected' : '' %>
-                        data-course-start="<%= cls.start_date %>"
-                        data-course-end="<%= cls.end_date %>">
-                  <%= cls.class_name %> - <%= cls.course_name %> (<%= cls.teacher_name %>)
-                </option>
-              <% }) %>
+              <option value="">Loading classes...</option>
             </select>
           </div>
 
@@ -52,7 +40,6 @@
             <input type="date" 
                    id="schedule_date" 
                    name="schedule_date" 
-                   value="<%= schedule.formatted_schedule_date %>"
                    class="mt-1 block w-full rounded-md border-gray-300" 
                    required>
           </div>
@@ -65,13 +52,13 @@
                     readonly
                     tabindex="-1"
                     required>
-              <option value="Monday" <%= schedule.day_of_week === 'Monday' ? 'selected' : '' %>>Monday</option>
-              <option value="Tuesday" <%= schedule.day_of_week === 'Tuesday' ? 'selected' : '' %>>Tuesday</option>
-              <option value="Wednesday" <%= schedule.day_of_week === 'Wednesday' ? 'selected' : '' %>>Wednesday</option>
-              <option value="Thursday" <%= schedule.day_of_week === 'Thursday' ? 'selected' : '' %>>Thursday</option>
-              <option value="Friday" <%= schedule.day_of_week === 'Friday' ? 'selected' : '' %>>Friday</option>
-              <option value="Saturday" <%= schedule.day_of_week === 'Saturday' ? 'selected' : '' %>>Saturday</option>
-              <option value="Sunday" <%= schedule.day_of_week === 'Sunday' ? 'selected' : '' %>>Sunday</option>
+              <option value="Monday">Monday</option>
+              <option value="Tuesday">Tuesday</option>
+              <option value="Wednesday">Wednesday</option>
+              <option value="Thursday">Thursday</option>
+              <option value="Friday">Friday</option>
+              <option value="Saturday">Saturday</option>
+              <option value="Sunday">Sunday</option>
             </select>
           </div>
 
@@ -81,7 +68,6 @@
               <input type="time" 
                      id="start_time" 
                      name="start_time" 
-                     value="<%= schedule.formatted_start_time %>"
                      step="3600"
                      class="mt-1 block w-full rounded-md border-gray-300" 
                      required>
@@ -92,7 +78,6 @@
               <input type="time" 
                      id="end_time" 
                      name="end_time" 
-                     value="<%= schedule.formatted_end_time %>"
                      step="3600"
                      class="mt-1 block w-full rounded-md border-gray-300" 
                      required>
@@ -106,60 +91,139 @@
             <button type="submit" class="px-4 py-2 bg-blue-500 text-black rounded hover:bg-blue-600">
               Update Schedule
             </button>
+            <button type="button" onclick="deleteSchedule()" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+              Delete
+            </button>
           </div>
         </form>
       </div>
 
       <script>
-        document.addEventListener('DOMContentLoaded', function() {
-          const form = document.querySelector('form');
+        const scheduleId = window.location.pathname.split('/')[2];
+        
+        async function loadScheduleData() {
+          try {
+            const response = await fetch(`/api/schedules/${scheduleId}/edit`);
+            if (!response.ok) throw new Error('Failed to load schedule');
+            const data = await response.json();
+            
+            // Populate classes
+            const classSelect = document.getElementById('class_id');
+            classSelect.innerHTML = '';
+            data.classes.forEach(cls => {
+              const option = document.createElement('option');
+              option.value = cls.id;
+              option.textContent = `${cls.class_name} - ${cls.course_name} (${cls.teacher_name})`;
+              option.dataset.courseStart = cls.start_date;
+              option.dataset.courseEnd = cls.end_date;
+              if (cls.id === data.schedule.class_id) {
+                option.selected = true;
+              }
+              classSelect.appendChild(option);
+            });
+            
+            // Fill in schedule data
+            document.getElementById('schedule_date').value = data.schedule.formatted_schedule_date;
+            document.getElementById('start_time').value = data.schedule.formatted_start_time;
+            document.getElementById('end_time').value = data.schedule.formatted_end_time;
+            document.getElementById('day_of_week').value = data.schedule.day_of_week;
+            
+            updateDateRestrictions();
+          } catch (error) {
+            console.error('Error loading schedule:', error);
+            alert('Failed to load schedule');
+          }
+        }
+        
+        function updateDateRestrictions() {
           const classSelect = document.getElementById('class_id');
+          const selectedOption = classSelect.options[classSelect.selectedIndex];
           const dateInput = document.getElementById('schedule_date');
-          const startTimeInput = document.getElementById('start_time');
-          const endTimeInput = document.getElementById('end_time');
-
-          form.addEventListener('submit', function(e) {
-            const selected = classSelect.options[classSelect.selectedIndex];
-            const scheduleDate = new Date(dateInput.value);
-            const courseStart = new Date(selected.dataset.courseStart);
-            const courseEnd = new Date(selected.dataset.courseEnd);
+          dateInput.min = selectedOption.dataset.courseStart;
+          dateInput.max = selectedOption.dataset.courseEnd;
+        }
+        
+        document.getElementById('scheduleForm').addEventListener('submit', async function(e) {
+          e.preventDefault();
+          
+          try {
+            const classSelect = document.getElementById('class_id');
+            const selectedOption = classSelect.options[classSelect.selectedIndex];
+            
+            const scheduleDate = new Date(document.getElementById('schedule_date').value);
+            const courseStart = new Date(selectedOption.dataset.courseStart);
+            const courseEnd = new Date(selectedOption.dataset.courseEnd);
             
             if (scheduleDate < courseStart || scheduleDate > courseEnd) {
-              e.preventDefault();
               alert('Schedule date must be within the course dates');
               return;
             }
-
-            if (startTimeInput.value >= endTimeInput.value) {
-              e.preventDefault();
+            
+            const startTime = document.getElementById('start_time').value;
+            const endTime = document.getElementById('end_time').value;
+            
+            if (startTime >= endTime) {
               alert('End time must be after start time');
               return;
             }
-          });
-
-          // Function to update the day of the week based on the date input
-          function updateDayOfWeek() {
-            const dateValue = dateInput.value;
-            if (!dateValue) return;
-
-            // Create a UTC date to avoid timezone issues
-            const parts = dateValue.split('-');
-            const year = parseInt(parts[0], 10);
-            const month = parseInt(parts[1], 10) - 1; // month is 0-indexed
-            const day = parseInt(parts[2], 10);
-            const selectedDate = new Date(Date.UTC(year, month, day));
-
-            const dayIndex = selectedDate.getUTCDay(); // 0=Sun, 1=Mon, ...
-            const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            document.getElementById('day_of_week').value = daysOfWeek[dayIndex];
+            
+            const formData = new FormData();
+            formData.append('class_id', document.getElementById('class_id').value);
+            formData.append('schedule_date', document.getElementById('schedule_date').value);
+            formData.append('day_of_week', document.getElementById('day_of_week').value);
+            formData.append('start_time', startTime);
+            formData.append('end_time', endTime);
+            
+            const response = await fetch(`/api/schedules/${scheduleId}`, {
+              method: 'POST',
+              body: formData
+            });
+            
+            if (response.ok) {
+              alert('Schedule updated successfully');
+              window.location.href = '/schedules';
+            } else {
+              const error = await response.json();
+              alert(error.message || 'Failed to update schedule');
+            }
+          } catch (error) {
+            console.error('Error updating schedule:', error);
+            alert('Error updating schedule');
           }
-
-          // Listen for changes on the date input
-          dateInput.addEventListener('change', updateDayOfWeek);
-
-          // Run on page load to set the initial day of the week
-          updateDayOfWeek();
         });
+        
+        async function deleteSchedule() {
+          if (confirm('Are you sure you want to delete this schedule?')) {
+            try {
+              const response = await fetch(`/api/schedules/${scheduleId}`, { method: 'DELETE' });
+              if (response.ok) {
+                alert('Schedule deleted successfully');
+                window.location.href = '/schedules';
+              } else {
+                alert('Failed to delete schedule');
+              }
+            } catch (error) {
+              alert('Error deleting schedule');
+            }
+          }
+        }
+        
+        document.getElementById('class_id').addEventListener('change', updateDateRestrictions);
+        
+        document.getElementById('schedule_date').addEventListener('change', function() {
+          const dateValue = this.value;
+          if (!dateValue) return;
+          const parts = dateValue.split('-');
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const day = parseInt(parts[2], 10);
+          const selectedDate = new Date(Date.UTC(year, month, day));
+          const dayIndex = selectedDate.getUTCDay();
+          const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          document.getElementById('day_of_week').value = daysOfWeek[dayIndex];
+        });
+        
+        document.addEventListener('DOMContentLoaded', loadScheduleData);
       </script>
     </div>
 
@@ -231,70 +295,7 @@
         </div>
     </footer>
 
-    <div class="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden md:max-w-2xl m-4 p-6">
-        <h1 class="text-2xl font-bold mb-4 text-center">Edit Schedule</h1>
-        <form method="POST" action="/schedules/<%= schedule.id %>" class="space-y-4">
-            <div class="form-group">
-                <label>Course:</label>
-                <select name="course_id" class="form-control" disabled>
-                    <option value="<%= schedule.course_id %>" selected>
-                        <%= schedule.course_name %>
-                    </option>
-                </select>
-            </div>
 
-            <div class="form-group">
-                <label>Class:</label>
-                <select name="class_id" class="form-control" required>
-                    <% classes.forEach(cls => { %>
-                    <option value="<%= cls.id %>" 
-                            <%= cls.id === schedule.class_id ? 'selected' : '' %>
-                            data-course-start="<%= cls.start_date %>"
-                            data-course-end="<%= cls.end_date %>">
-                        <%= cls.class_name %> (<%= cls.course_name %>)
-                    </option>
-                    <% }) %>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Schedule Date:</label>
-                <input type="date" name="schedule_date" 
-                       value="<%= schedule.schedule_date.toISOString().split('T')[0] %>"
-                       min="<%= schedule.course_start.toISOString().split('T')[0] %>"
-                       max="<%= schedule.course_end.toISOString().split('T')[0] %>"
-                       class="form-control" required>
-            </div>
-
-            <!-- Add client-side validation -->
-            <script>
-            document.querySelector('form').addEventListener('submit', function(e) {
-              const classSelect = document.querySelector('[name="class_id"]');
-              const dateInput = document.querySelector('[name="schedule_date"]');
-              const selectedOption = classSelect.selectedOptions[0];
-              
-              const courseStart = new Date(selectedOption.dataset.courseStart);
-              const courseEnd = new Date(selectedOption.dataset.courseEnd);
-              const scheduleDate = new Date(dateInput.value);
-              
-              if (scheduleDate < courseStart || scheduleDate > courseEnd) {
-                e.preventDefault();
-                alert('Schedule date must be within course start and end dates');
-              }
-            });
-            </script>
-
-            <div class="flex justify-between items-center mt-6">
-                <a href="/schedules" class="text-blue-500 hover:text-blue-700 font-medium">
-                    Back to schedules
-                </a>
-                <button type="submit"
-                    class="bg-blue-500 text-black px-4 py-2 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    Update Schedule
-                </button>
-            </div>
-        </form>
-    </div>
 </body>
 
 </html>

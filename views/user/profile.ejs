@@ -12,7 +12,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-    <style>
+    
+    <script src="/js/auth-jwt.js"></script>
+   <style>
         .modern-container {
             max-width: 1200px;
             margin: 48px auto 0 auto;
@@ -123,14 +125,14 @@
     <main>
         <div class="modern-container">
             <div class="modern-header">
-                <div class="modern-title">Welcome, <%= user.username %>!</div>
-                <a href="/users/<%= user.id %>/edit" class="modern-btn-primary">
+                <div class="modern-title" id="welcomeTitle">Loading...</div>
+                <a href="/" class="modern-btn-primary" id="editProfileBtn" style="display:none;">
                     <i class="fas fa-edit"></i> Edit Profile
                 </a>
             </div>
             <div class="flex justify-center mb-6">
                 <img 
-                    src="<%= details.profile_pic ? '/' + details.profile_pic.replace(/\\/g, '/') : '/uploads/profile_pic/default_profile_pic.png' %>" 
+                    id="profilePic"
                     alt="Profile Picture" 
                     class="rounded-full h-32 w-32 object-cover border-4 border-blue-200 shadow-lg"
                 >
@@ -140,37 +142,35 @@
                 <div class="modern-info-grid">
                     <div class="modern-info-item">
                         <span class="modern-info-label">Role</span>
-                        <span class="modern-info-value"><%= user.role %></span>
+                        <span class="modern-info-value" id="roleValue">-</span>
                     </div>
                     <div class="modern-info-item">
                         <span class="modern-info-label">Member Since</span>
-                        <span class="modern-info-value"><%= new Date(user.created_at).toLocaleDateString() %></span>
+                        <span class="modern-info-value" id="memberSinceValue">-</span>
                     </div>
                     <div class="modern-info-item">
                         <span class="modern-info-label">Last Updated</span>
-                        <span class="modern-info-value"><%= new Date(user.updated_at).toLocaleDateString() %></span>
+                        <span class="modern-info-value" id="lastUpdatedValue">-</span>
                     </div>
                 </div>
             </div>
-            <% if (details) { %>
             <div class="modern-section">
                 <div class="modern-section-title">Personal Information</div>
                 <div class="modern-info-grid">
                     <div class="modern-info-item">
                         <span class="modern-info-label">Full Name</span>
-                        <span class="modern-info-value"><%= details.full_name %></span>
+                        <span class="modern-info-value" id="fullNameValue">-</span>
                     </div>
                     <div class="modern-info-item">
                         <span class="modern-info-label">Email</span>
-                        <span class="modern-info-value"><%= details.email %></span>
+                        <span class="modern-info-value" id="emailValue">-</span>
                     </div>
                     <div class="modern-info-item">
                         <span class="modern-info-label">Phone</span>
-                        <span class="modern-info-value"><%= details.phone_number %></span>
+                        <span class="modern-info-value" id="phoneValue">-</span>
                     </div>
                 </div>
             </div>
-            <% } %>
         </div>
     </main>
     <footer class="relative bg-blueGray-200 pt-8 pb-6">
@@ -241,6 +241,36 @@
         </div>
     </footer>
     <script src="/js/main.js"></script>
-</body>
+    <script>
+        async function loadProfile() {
+            try {
+                const response = await fetch('/api/profile');
+                if (!response.ok) throw new Error('Failed to load profile');
+                const data = await response.json();
+                const details = data.details;
+                const user = data.user;
+                
+                document.getElementById('welcomeTitle').textContent = `Welcome, ${user.username}!`;
+                document.getElementById('editProfileBtn').href = `/users/${user.id}/edit`;
+                document.getElementById('editProfileBtn').style.display = 'flex';
+                
+                const profilePic = details.profile_pic ? '/' + details.profile_pic.replace(/\\/g, '/') : '/uploads/profile_pic/default_profile_pic.png';
+                document.getElementById('profilePic').src = profilePic;
+                
+                document.getElementById('roleValue').textContent = user.role;
+                document.getElementById('memberSinceValue').textContent = new Date(user.created_at).toLocaleDateString();
+                document.getElementById('lastUpdatedValue').textContent = new Date(user.updated_at).toLocaleDateString();
+                
+                document.getElementById('fullNameValue').textContent = details.full_name || '-';
+                document.getElementById('emailValue').textContent = details.email || '-';
+                document.getElementById('phoneValue').textContent = details.phone_number || '-';
+            } catch (error) {
+                console.error('Error loading profile:', error);
+                document.getElementById('welcomeTitle').textContent = 'Error loading profile';
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', loadProfile);
+    </script>
 
 </html>

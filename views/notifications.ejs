@@ -15,7 +15,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
+    <script src="/js/auth-jwt.js"></script>
     <style>
         /* General layout */
         html, body { height: 100%; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
@@ -163,26 +163,20 @@
                 <div class="modern-title">
                     <i class="fas fa-bell"></i> Notifications
                 </div>
-                <% if (user.role === 'admin' || user.role === 'teacher') { %>
-                <a href="#sendNotificationCard" class="modern-btn-primary" onclick="document.getElementById('sendNotificationCard').scrollIntoView({behavior:'smooth'});return false;">
+                <a href="#sendNotificationCard" id="sendNotifBtn" class="modern-btn-primary" onclick="document.getElementById('sendNotificationCard').scrollIntoView({behavior:'smooth'});return false;" style="display:none;">
                     <i class="fas fa-paper-plane"></i> Send Notification
                 </a>
-                <% } %>
             </div>
 
-            <% if (user.role === 'admin' || user.role === 'teacher') { %>
-            <div id="sendNotificationCard" class="modern-card">
+            <div id="sendNotificationCard" class="modern-card" style="display:none;">
                 <div class="modern-section-title">
                     <i class="fas fa-paper-plane"></i> Send a New Notification
                 </div>
-                <form action="/notifications" method="POST" class="modern-form-grid">
+                <form id="sendNotificationForm" class="modern-form-grid">
                     <div class="modern-info-item">
                         <label for="userId" class="modern-info-label">To User</label>
                         <select name="userId" id="userId" class="modern-info-value" required>
-                            <option value="">Select a user...</option>
-                            <% users && users.forEach(u => { %>
-                                <option value="<%= u.id %>"><%= u.full_name %> (<%= u.email %>)</option>
-                            <% }) %>
+                            <option value="">Loading users...</option>
                         </select>
                     </div>
                     <div class="modern-info-item grid-col-span-2">
@@ -194,7 +188,6 @@
                     </div>
                 </form>
             </div>
-            <% } %>
 
             <div class="card">
                 <div class="card-header">
@@ -214,32 +207,8 @@
                                     <th style="width:80px; text-align: center;">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                <% notifications.forEach(notification => { %>
-                                <tr>
-                                    <td><%= notification.id %></td>
-                                    <td style="font-weight: 500;"><%= notification.sender_name %></td>
-                                    <td style="font-weight: 500;"><%= notification.receiver_name %></td>
-                                    <td><%= notification.message %></td>
-                                    <td><%= new Date(notification.created_at).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) %></td>
-                                    <td style="text-align: center;">
-                                        <% if(notification.read) { %>
-                                            <span class="badge bg-success">Read</span>
-                                        <% } else { %>
-                                            <span class="badge bg-warning unread-notification" data-id="<%= notification.id %>">Unread</span>
-                                        <% } %>
-                                    </td>
-                                    <td>
-                                        <div class="actions">
-                                            <form method="POST" action="/notifications/<%= notification.id %>?_method=DELETE" style="display:inline;">
-                                                <button type="submit" class="btn-delete" title="Delete" onclick="return confirm('Are you sure you want to delete this notification?')">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <% }) %>
+                            <tbody id="notificationsTableBody">
+                                <tr><td colspan="7" style="text-align:center; padding:2rem;">Loading notifications...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -256,48 +225,159 @@
     <script type="text/javascript" src="https://code.jquery.com/jquery-3.7.0.js"></script>
     <script type="text/javascript" src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
     <script type="text/javascript" src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script src="/js/script.js"></script>
+    <script src="/js/main.js"></script>
+    <script type="text/javascript" src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
     <script>
-        $(document).ready(function () {
-            $('#notificationsTable').DataTable({
-                responsive: true,
-                pageLength: 10,
-                order: [[0, 'desc']],
-                columnDefs: [ 
-                    { targets: [6], orderable: false, searchable: false } 
-                ],
-                dom: '<"top"lf>rt<"bottom"ip>',
-                language: {
-                    search: "",
-                    searchPlaceholder: "Search notifications...",
-                    lengthMenu: "Show _MENU_",
-                    info: "Showing _START_ to _END_ of _TOTAL_ entries",
-                    paginate: {
-                        first: "<<",
-                        last: ">>",
-                        next: ">",
-                        previous: "<"
-                    }
+        async function loadNotifications() {
+            try {
+                const response = await fetch('/api/notifications');
+                if (!response.ok) throw new Error('Failed to load notifications');
+                const data = await response.json();
+                const notifications = data.notifications || [];
+                const user = data.user;
+                
+                // Show send button if admin or teacher
+                if (user.role === 'admin' || user.role === 'teacher') {
+                    document.getElementById('sendNotifBtn').style.display = 'flex';
+                    document.getElementById('sendNotificationCard').style.display = 'block';
+                    await loadUsers();
                 }
-            });
-
-            $('#notificationsTable tbody').on('click', '.unread-notification', function () {
-                const notificationId = $(this).data('id');
-                const badge = $(this);
-
-                $.post(`/notifications/${notificationId}/read`)
-                    .done(function () {
-                        badge
-                            .removeClass('bg-warning unread-notification')
-                            .addClass('bg-success')
-                            .text('Read')
-                            .css('cursor', 'default');
-                    })
-                    .fail(function (err) {
-                        console.error('Error marking notification as read:', err);
-                        alert('Failed to mark notification as read');
-                    });
-            });
+                
+                // Load notifications table
+                const tbody = document.getElementById('notificationsTableBody');
+                if (!notifications || notifications.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem;">No notifications found</td></tr>';
+                } else {
+                    tbody.innerHTML = notifications.map(notif => `
+                        <tr>
+                            <td>${notif.id}</td>
+                            <td style="font-weight: 500;">${notif.sender_name}</td>
+                            <td style="font-weight: 500;">${notif.receiver_name}</td>
+                            <td>${notif.message}</td>
+                            <td>${new Date(notif.created_at).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                            <td style="text-align: center;">
+                                <span class="badge ${notif.read ? 'bg-success' : 'bg-warning unread-notification'}" data-id="${notif.id}">
+                                    ${notif.read ? 'Read' : 'Unread'}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="actions">
+                                    <button onclick="deleteNotification(${notif.id})" class="btn-delete" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+                
+                // Initialize DataTable
+                if ($.fn.dataTable.isDataTable('#notificationsTable')) {
+                    $('#notificationsTable').DataTable().destroy();
+                }
+                
+                $('#notificationsTable').DataTable({
+                    responsive: true,
+                    pageLength: 10,
+                    order: [[0, 'desc']],
+                    columnDefs: [ 
+                        { targets: [6], orderable: false, searchable: false } 
+                    ],
+                    dom: '<"top"lf>rt<"bottom"ip>',
+                    language: {
+                        search: "",
+                        searchPlaceholder: "Search notifications...",
+                        lengthMenu: "Show _MENU_",
+                        info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                        paginate: {
+                            first: "<<",
+                            last: ">>",
+                            next: ">",
+                            previous: "<"
+                        }
+                    }
+                });
+                
+                // Add event listener for unread notifications
+                document.addEventListener('click', async function(e) {
+                    if (e.target.closest('.unread-notification')) {
+                        const badge = e.target.closest('.unread-notification');
+                        const notificationId = badge.dataset.id;
+                        try {
+                            const response = await fetch(`/api/notifications/${notificationId}/read`, { method: 'POST' });
+                            if (response.ok) {
+                                badge.classList.remove('bg-warning', 'unread-notification');
+                                badge.classList.add('bg-success');
+                                badge.textContent = 'Read';
+                                badge.style.cursor = 'default';
+                            }
+                        } catch (error) {
+                            console.error('Error marking notification as read:', error);
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading notifications:', error);
+                document.getElementById('notificationsTableBody').innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Error loading notifications</td></tr>';
+            }
+        }
+        
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/users');
+                if (!response.ok) throw new Error('Failed to load users');
+                const data = await response.json();
+                const users = data.users || [];
+                
+                const userSelect = document.getElementById('userId');
+                userSelect.innerHTML = '<option value="">Select a user...</option>' + 
+                    users.map(u => `<option value="${u.id}">${u.full_name} (${u.email})</option>`).join('');
+            } catch (error) {
+                console.error('Error loading users:', error);
+            }
+        }
+        
+        async function deleteNotification(notificationId) {
+            if (confirm('Are you sure you want to delete this notification?')) {
+                try {
+                    const response = await fetch(`/api/notifications/${notificationId}`, { method: 'DELETE' });
+                    if (response.ok) {
+                        loadNotifications();
+                    } else {
+                        alert('Failed to delete notification');
+                    }
+                } catch (error) {
+                    alert('Error deleting notification');
+                }
+            }
+        }
+        
+        document.getElementById('sendNotificationForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            try {
+                const formData = new FormData(this);
+                const response = await fetch('/api/notifications', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (response.ok) {
+                    alert('Notification sent successfully');
+                    this.reset();
+                    loadNotifications();
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Failed to send notification');
+                }
+            } catch (error) {
+                alert('Error sending notification');
+            }
         });
+        
+        $(document).ready(loadNotifications);
     </script>
 </body>
 </html>

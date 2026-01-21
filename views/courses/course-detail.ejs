@@ -9,7 +9,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-    <style>
+    
+    <script src="/js/auth-jwt.js"></script>
         html,
         body {
             height: 100%;
@@ -163,35 +164,17 @@
 <body>
     <%- include('../shared/header.ejs') %>
 
-    <main class="course-detail-container custom-course-detail">
-        <div class="course-detail-banner custom-banner">
-            <%
-        function imageSrc(img) {
-          if (!img) return '/images/placeholder.svg';
-          if (typeof img !== 'string') return '/images/placeholder.svg';
-          img = String(img).replace(/\\\\/g, '/');
-          if (/^https?:\/\//i.test(img)) return img;
-          if (img.startsWith('/')) return img;
-          if (img.startsWith('uploads/')) return '/' + img;
-          if (img.startsWith('images/')) return '/' + img;
-          return '/images/' + img;
-        }
-      %>
-            <img src="<%= imageSrc(course.image_path) %>" alt="<%= course.course_name %>"
-                class="course-detail-img custom-banner-img"
-                onerror="this.onerror=null;this.src='/images/placeholder.svg'">
+    <main class="course-detail-container custom-course-detail" id="courseDetailContainer">
+        <div class="course-detail-banner custom-banner" id="courseBanner">
+            <img src="/images/placeholder.svg" alt="Loading..." class="course-detail-img custom-banner-img" id="courseImage">
             <div class="course-detail-titlebox custom-banner-titlebox">
-                <h1 class="course-detail-title custom-banner-title"><%= course.course_name %></h1>
-                <p class="course-detail-shortdesc custom-banner-desc">
-                    <%= course.description.substring(0, 150) %>...
-                </p>
+                <h1 class="course-detail-title custom-banner-title" id="courseTitle">Loading...</h1>
+                <p class="course-detail-shortdesc custom-banner-desc" id="courseShortDesc"></p>
             </div>
         </div>
         <section class="course-detail-content custom-content">
             <h2 class="custom-section-title">Giới thiệu khoá học</h2>
-            <p>
-                <%- course.description.replace(/\n/g, '<br>') %>
-            </p>
+            <p id="courseDescription"></p>
             <div class="custom-section">
                 <h3>Liên hệ đăng ký</h3>
                 <p>
@@ -200,16 +183,59 @@
                 </p>
             </div>
             <div class="custom-btn-wrap">
-                <% if (!user) { %>
-                <a href="/login" onclick="showRegisterPopup(event)"
-                    class="course-detail-register-btn custom-register-btn">Đăng ký ngay</a>
-                <% } else { %>
-                <a href="/available-courses" class="course-detail-register-btn custom-register-btn">Đăng ký ngay</a>
-                <% } %>
+                <a id="registerBtn" href="/available-courses" class="course-detail-register-btn custom-register-btn">Đăng ký ngay</a>
             </div>
         </section>
     </main>
     <%- include('../shared/footer.ejs') %>
+    
+    <script>
+      const courseId = window.location.pathname.split('/').pop();
+      
+      function imageSrc(img) {
+        if (!img) return '/images/placeholder.svg';
+        if (typeof img !== 'string') return '/images/placeholder.svg';
+        img = String(img).replace(/\\\\/g, '/');
+        if (/^https?:\/\//i.test(img)) return img;
+        if (img.startsWith('/')) return img;
+        if (img.startsWith('uploads/')) return '/' + img;
+        if (img.startsWith('images/')) return '/' + img;
+        return '/images/' + img;
+      }
+      
+      async function loadCourseDetail() {
+        try {
+          const response = await fetch(`/api/course-detail/${courseId}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          
+          if (!response.ok) throw new Error('Failed to load course');
+          
+          const data = await response.json();
+          const course = data.course;
+          const user = data.user;
+          
+          document.getElementById('courseTitle').textContent = course.course_name;
+          document.getElementById('courseShortDesc').textContent = course.description.substring(0, 150) + '...';
+          document.getElementById('courseDescription').textContent = course.description;
+          document.getElementById('courseImage').src = imageSrc(course.image_path);
+          
+          if (!user) {
+            document.getElementById('registerBtn').setAttribute('onclick', 'showRegisterPopup(event)');
+            document.getElementById('registerBtn').href = '#';
+          }
+        } catch (error) {
+          console.error('Error loading course:', error);
+          document.getElementById('courseDetailContainer').innerHTML = `<div style="padding:2rem; color:#ef4444; text-align:center;">Error loading course: ${error.message}</div>`;
+        }
+      }
+      
+      document.addEventListener('DOMContentLoaded', loadCourseDetail);
+    </script>
+</body>
+
+</html>
 </body>
 
 </html>

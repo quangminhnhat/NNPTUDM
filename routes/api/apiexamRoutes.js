@@ -1737,7 +1737,7 @@ router.post('/:assignmentId/start', checkAuthenticated, authenticateRole(['stude
 
     // Get assignment and exam details
     const assignmentQuery = `
-      SELECT ea.*, e.shuffle_questions, e.shuffle_options 
+      SELECT ea.*, e.exam_id, e.exam_title, e.exam_code, e.duration_min, e.shuffle_questions, e.shuffle_options 
       FROM ExamAssignments ea
       JOIN Exams e ON ea.exam_id = e.exam_id
       WHERE ea.assignment_id = ${assignmentId}
@@ -1758,16 +1758,19 @@ router.post('/:assignmentId/start', checkAuthenticated, authenticateRole(['stude
       return res.status(403).json({ message: "Student not found" });
     }
 
-    // Check attempt count
+    // Check attempt count - only count SUBMITTED attempts (have submitted_at set)
     const attemptCountQuery = `
       SELECT COUNT(*) as attempt_count, ea.max_attempts
       FROM Attempts a
       JOIN ExamAssignments ea ON a.assignment_id = ea.assignment_id
       WHERE a.assignment_id = ${assignmentId} 
       AND a.student_id = ${student[0].id}
+      AND a.submitted_at IS NOT NULL
       GROUP BY ea.max_attempts`;
     
     const attemptCount = await executeQuery(attemptCountQuery);
+    
+    console.log('Attempt check:', attemptCount.length > 0 ? attemptCount[0] : { attempt_count: 0, max_attempts: null });
     
     if (attemptCount.length > 0 && attemptCount[0].attempt_count >= attemptCount[0].max_attempts) {
       return res.status(403).json({ message: "Maximum attempts reached for this exam" });
@@ -1802,73 +1805,142 @@ router.post('/:assignmentId/start', checkAuthenticated, authenticateRole(['stude
     const attempt = await executeQuery(attemptQuery);
     const attemptId = attempt[0].attempt_id;
 
-    // Get questions
+    // Get questions with their type info
     let questionsQuery = `
       SELECT q.*, qt.type_name, qt.type_code
       FROM Questions q
       JOIN QuestionTypes qt ON q.type_id = qt.type_id
       WHERE q.exam_id = ${assignment[0].exam_id}
+      ORDER BY q.question_id
     `;
 
-    const questions = await executeQuery(questionsQuery);
+    let questions = await executeQuery(questionsQuery);
+    
+    if (!questions || questions.length === 0) {
+      questions = [];
+    }
 
     // Shuffle questions if enabled
-    if (assignment[0].shuffle_questions) {
+    if (assignment[0].shuffle_questions && questions.length > 0) {
       questions.sort(() => Math.random() - 0.5);
     }
 
-    // For each MCQ question, create shuffled options
+    // For each MCQ question, create shuffled option instances (needed for auto-grading)
     for (const question of questions) {
       if (question.type_code === 'MCQ') {
-        const optionsQuery = `
-          SELECT * FROM MCQOptions WHERE question_id = ${question.question_id}
-        `;
-        let options = await executeQuery(optionsQuery);
+        try {
+          const optionsQuery = `
+            SELECT * FROM MCQOptions WHERE question_id = ${question.question_id}
+          `;
+          let options = await executeQuery(optionsQuery);
 
-        // Shuffle options if enabled
-        if (assignment[0].shuffle_options) {
-          options.sort(() => Math.random() - 0.5);
-        }
+          // Shuffle options if enabled
+          if (assignment[0].shuffle_options && options && options.length > 0) {
+            options.sort(() => Math.random() - 0.5);
+          }
 
-        // Create option instances with shuffled order
-        for (let i = 0; i < options.length; i++) {
-          const option = options[i];
-          await executeQuery(`
-            INSERT INTO OptionInstances (
-              attempt_id, 
-              question_id, 
-              option_id, 
-              display_order, 
-              display_label, 
-              option_text_snapshot, 
-              is_correct_snapshot
-            )
-            VALUES (
-              ${attemptId},
-              ${question.question_id},
-              ${option.option_id},
-              ${i + 1},
-              '${String.fromCharCode(65 + i)}',
-              '${option.option_text}',
-              ${option.is_correct}
-            )
-          `);
+          // Create option instances with shuffled order
+          if (options && options.length > 0) {
+            for (let i = 0; i < options.length; i++) {
+              const option = options[i];
+              // Escape single quotes in option text
+              const escapedText = option.option_text ? option.option_text.replace(/'/g, "''") : '';
+              // Convert boolean to SQL bit (0 or 1)
+              const isCorrect = option.is_correct ? 1 : 0;
+              const insertQuery = `
+                INSERT INTO OptionInstances (
+                  attempt_id, 
+                  question_id, 
+                  option_id, 
+                  display_order, 
+                  display_label, 
+                  option_text_snapshot, 
+                  is_correct_snapshot
+                )
+                VALUES (
+                  ${attemptId},
+                  ${question.question_id},
+                  ${option.option_id},
+                  ${i + 1},
+                  '${String.fromCharCode(65 + i)}',
+                  '${escapedText}',
+                  ${isCorrect}
+                )
+              `;
+              await executeQuery(insertQuery);
+            }
+          }
+        } catch (e) {
+          console.error(`Error creating option instances for question ${question.question_id}:`, e);
+          // Continue with other questions even if this one fails
         }
       }
     }
 
-    res.json({ 
-      attemptId: attemptId,
-      questions: questions.map(q => ({
+    // Build full question details with options and media
+    const fullQuestions = [];
+    for (const q of questions) {
+      const questionData = {
         question_id: q.question_id,
         body_text: q.body_text,
-        type: q.type_name,
-        points: q.points
-      }))
+        type_id: q.type_id,
+        type_name: q.type_name,
+        type_code: q.type_code,
+        points: q.points,
+        options: [],
+        media: []
+      };
+
+      // Get options for MCQ questions
+      if (q.type_code === 'MCQ') {
+        try {
+          const optionsQuery = `
+            SELECT * FROM MCQOptions WHERE question_id = ${q.question_id}
+          `;
+          let options = await executeQuery(optionsQuery);
+          
+          // Shuffle options if enabled
+          if (assignment[0].shuffle_options && options && options.length > 0) {
+            options.sort(() => Math.random() - 0.5);
+          }
+          
+          questionData.options = options || [];
+        } catch (e) {
+          console.error(`Error loading options for question ${q.question_id}:`, e);
+          questionData.options = [];
+        }
+      }
+
+      // Get media files
+      try {
+        const mediaQuery = `
+          SELECT media_id, caption, file_name, file_url FROM QuestionMedia WHERE question_id = ${q.question_id}
+        `;
+        const media = await executeQuery(mediaQuery);
+        questionData.media = media || [];
+      } catch (e) {
+        console.error(`Error loading media for question ${q.question_id}:`, e);
+        questionData.media = [];
+      }
+
+      fullQuestions.push(questionData);
+    }
+
+    res.json({ 
+      exam: {
+        exam_id: assignment[0].exam_id,
+        exam_title: assignment[0].exam_title,
+        exam_code: assignment[0].exam_code,
+        duration_min: assignment[0].duration_min
+      },
+      attempt: {
+        attempt_id: attemptId
+      },
+      questions: fullQuestions
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error starting exam" });
+    console.error('Error in /start endpoint:', error);
+    res.status(500).json({ message: "Error starting exam", error: error.message });
   }
 
 

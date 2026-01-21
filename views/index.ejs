@@ -12,7 +12,8 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
   <link rel="stylesheet"
     href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-</head>
+  <script src="/js/auth-jwt.js"></script>
+  </head>
 
 <body>
   <%- include('../views/shared/header.ejs') %>
@@ -91,41 +92,10 @@
      
       <!-- The slider now has horizontal margins to create space for the arrows -->
       <div class="news-section swiper news-swiper" style="margin: 0 60px;">
-        <div class="swiper-wrapper">
-          <% if (courses && courses.length) { %>
-          <% /* normalize various stored image paths and provide a fallback */ %>
-          <% function imageSrc(img) {
-               if (!img) return '/images/placeholder.svg';
-               if (typeof img !== 'string') return '/images/placeholder.svg';
-               img = String(img).replace(/\\\\/g, '/'); // backslashes -> slashes
-               if (/^https?:\/\//i.test(img)) return img; // full url
-               if (img.startsWith('/')) return img; // already absolute
-               if (img.startsWith('uploads/')) return '/' + img; // uploaded files served at /uploads
-               if (img.startsWith('images/')) return '/' + img; // existing public images
-               // bare filename — assume it's in public/images
-               return '/images/' + img;
-             } %>
-          <% courses.slice(0, 6).forEach(function(course) { %>
-          <div class="news-item2 swiper-slide">
-            <img src="<%= imageSrc(course.img) %>" alt="Course Image"
-              onerror="this.onerror=null;this.src='/images/placeholder.svg'">
-            <div class="news-content">
-              <div class="news-title">
-                <a href="/course-detail/<%= course.id %>"><%= course.title %></a>
-              </div>
-              <div class="news-description">
-                <%= course.course_desc %>
-              </div>
-            </div>
+        <div class="swiper-wrapper" id="coursesList">
+          <div class="news-item2 swiper-slide" style="text-align: center; padding: 2rem;">
+            <p>Loading courses...</p>
           </div>
-          <% }); %>
-          <% } else { %>
-          <div class="news-item2 swiper-slide">
-            <div class="news-content">
-              <div class="news-title">No courses available</div>
-            </div>
-          </div>
-          <% } %>
         </div>
       </div>
     
@@ -447,6 +417,66 @@
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
   <script src="/js/script.js"></script>
   <script src="/js/slideshow.js"></script>
-</body>
+  <script>
+    async function loadFeaturedCourses() {
+      try {
+        const response = await fetch('/api/available-courses');
+        if (!response.ok) throw new Error('Failed to load courses');
+        const data = await response.json();
+        const courses = data.courses || [];
+        
+        const coursesList = document.getElementById('coursesList');
+        
+        if (!courses || courses.length === 0) {
+          coursesList.innerHTML = '<div class="news-item2 swiper-slide"><div class="news-content"><div class="news-title">No courses available</div></div></div>';
+          return;
+        }
+        
+        function imageSrc(img) {
+          if (!img) return '/images/placeholder.svg';
+          if (typeof img !== 'string') return '/images/placeholder.svg';
+          img = String(img).replace(/\\\\/g, '/');
+          if (/^https?:\/\//i.test(img)) return img;
+          if (img.startsWith('/')) return img;
+          if (img.startsWith('uploads/')) return '/' + img;
+          if (img.startsWith('images/')) return '/' + img;
+          return '/images/' + img;
+        }
+        
+        coursesList.innerHTML = courses.slice(0, 6).map(course => `
+          <div class="news-item2 swiper-slide">
+            <img src="${imageSrc(course.img)}" alt="Course Image" 
+              onerror="this.onerror=null;this.src='/images/placeholder.svg'">
+            <div class="news-content">
+              <div class="news-title">
+                <a href="/course-detail/${course.id}">${course.title}</a>
+              </div>
+              <div class="news-description">
+                ${course.course_desc}
+              </div>
+            </div>
+          </div>
+        `).join('');
+        
+        // Reinitialize swiper after loading
+        if (window.newsSwiper) {
+          window.newsSwiper.destroy();
+        }
+        window.newsSwiper = new Swiper('.news-swiper', {
+          slidesPerView: 1,
+          spaceBetween: 20,
+          breakpoints: {
+            640: { slidesPerView: 2 },
+            1024: { slidesPerView: 3 }
+          }
+        });
+      } catch (error) {
+        console.error('Error loading courses:', error);
+        document.getElementById('coursesList').innerHTML = '<div class="news-item2 swiper-slide"><p style="color: red;">Error loading courses</p></div>';
+      }
+    }
+    
+    document.addEventListener('DOMContentLoaded', loadFeaturedCourses);
+  </script>
 
 </html>

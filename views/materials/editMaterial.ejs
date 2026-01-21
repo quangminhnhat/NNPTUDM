@@ -12,7 +12,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-    <style>
+    
+    <script src="/js/auth-jwt.js"></script>
+   <style>
         .modern-container {
             max-width: 1200px;
             margin: 48px auto 0 auto;
@@ -135,27 +137,20 @@
  
 
     <main>
-        <form method="POST" action="/materials/<%= material.id %>" class="modern-container" enctype="multipart/form-data" autocomplete="off">
+        <form id="editForm" class="modern-container" enctype="multipart/form-data" autocomplete="off">
             <legend class="modern-title">
                 <i class="fas fa-edit mr-2"></i>
                 Edit Material
             </legend>
-            <% if (messages && messages.error) { %>
-                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                    <%= messages.error %>
-                </div>
-            <% } %>
+            <input type="hidden" id="materialId">
             <div class="modern-form-group">
                 <label for="course_id"><i class="fas fa-book mr-2"></i>Course</label>
                 <select name="course_id" id="course_id" required class="modern-form-control">
-                    <% courses.forEach(course => { %>
-                        <option value="<%= course.id %>" <%= course.id === material.course_id ? 'selected' : '' %>><%= course.course_name %></option>
-                    <% }); %>
                 </select>
             </div>
             <div class="modern-form-group">
                 <label><i class="fas fa-file mr-2"></i>Current File</label>
-                <div class="text-sm text-gray-600 mb-2"><%= material.file_name %></div>
+                <div class="text-sm text-gray-600 mb-2" id="currentFileName"></div>
                 <label for="material"><i class="fas fa-upload mr-2"></i>Upload New File</label>
                 <input type="file" name="material" id="material" class="modern-form-control">
                 <p class="text-sm text-gray-500 mt-1">Leave empty to keep current file</p>
@@ -168,11 +163,11 @@
                 <i class="fas fa-arrow-left"></i> Back to materials
             </a>
         </form>
-        <form action="/materials/<%= material.id %>?_method=DELETE" method="POST" onsubmit="return confirm('Are you sure you want to delete this material?')" class="modern-container" style="margin-top: 1rem;">
-            <button type="submit" class="modern-btn-danger">
+        <div id="deleteContainer" class="modern-container" style="margin-top: 1rem;">
+            <button type="button" class="modern-btn-danger" onclick="deleteMaterial()">
                 <i class="fas fa-trash-alt"></i> Delete Material
             </button>
-        </form>
+        </div>
     </main>
 
     <footer class="relative bg-blueGray-200 pt-8 pb-6">
@@ -244,6 +239,87 @@
     </footer>
     <script src="/js/script.js"></script>
     <script src="/js/main.js"></script>
+    
+    <script>
+    const materialId = window.location.pathname.split('/')[2];
+    
+    async function loadMaterialData() {
+      try {
+        const response = await fetch(`/api/materials/${materialId}/edit`);
+        if (!response.ok) throw new Error('Failed to load material');
+        const data = await response.json();
+        
+        const material = data.material;
+        const courses = data.courses || [];
+        
+        // Set hidden material ID
+        document.getElementById('materialId').value = materialId;
+        
+        // Populate file name
+        document.getElementById('currentFileName').textContent = material.file_name;
+        
+        // Populate course select
+        const select = document.getElementById('course_id');
+        select.innerHTML = courses.map(course => 
+          `<option value="${course.id}" ${course.id === material.course_id ? 'selected' : ''}>${course.course_name}</option>`
+        ).join('');
+      } catch (error) {
+        console.error('Error loading material:', error);
+        alert('Error loading material');
+      }
+    }
+    
+    async function updateMaterial(e) {
+      e.preventDefault();
+      
+      try {
+        const courseId = document.getElementById('course_id').value;
+        const fileInput = document.getElementById('material');
+        
+        const formData = new FormData();
+        formData.append('course_id', courseId);
+        
+        if (fileInput.files[0]) {
+          formData.append('material', fileInput.files[0]);
+        }
+        
+        const response = await fetch(`/api/materials/${materialId}`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.message) {
+          alert('Material updated successfully');
+          window.location.href = '/materials';
+        } else {
+          throw new Error(result.error || 'Update failed');
+        }
+      } catch (error) {
+        console.error('Error updating material:', error);
+        alert('Error updating material: ' + error.message);
+      }
+    }
+    
+    async function deleteMaterial() {
+      if (!confirm('Are you sure you want to delete this material?')) return;
+      
+      try {
+        const response = await fetch(`/api/materials/${materialId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete');
+        const result = await response.json();
+        alert(result.message || 'Material deleted successfully');
+        window.location.href = '/materials';
+      } catch (error) {
+        console.error('Error deleting material:', error);
+        alert('Error deleting material');
+      }
+    }
+    
+    document.getElementById('editForm').addEventListener('submit', updateMaterial);
+    document.addEventListener('DOMContentLoaded', loadMaterialData);
+    </script>
 </body>
 
 </html>

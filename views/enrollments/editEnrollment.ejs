@@ -13,7 +13,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-    <style>
+    
+    <script src="/js/auth-jwt.js"></script>
+   <style>
     html, body {
         height: 100%;
         min-height: 100%;
@@ -115,28 +117,26 @@
 
 <body>
     <main>
-  <form method="POST" action="/enrollments/<%= enrollment.id %>?_method=PUT" class="modern-form-container" autocomplete="off">
+  <form id="editEnrollmentForm" class="modern-form-container" autocomplete="off">
     <legend class="modern-form-title">
       <i class="fas fa-user-edit mr-2"></i>
       Edit Enrollment
     </legend>
+    <div id="messageContainer"></div>
     <div class="modern-form-group">
       <label for="student_id"><i class="fas fa-user-graduate mr-2"></i>Student</label>
-      <input type="text" id="student_name" name="student_name" class="modern-form-control" value="<%= enrollment.student_name %>" disabled>
-      <input type="hidden" name="student_id" value="<%= enrollment.student_id %>">
+      <input type="text" id="student_name" name="student_name" class="modern-form-control" disabled>
+      <input type="hidden" name="student_id" id="student_id_hidden">
     </div>
     <div class="modern-form-group">
       <label for="class_id"><i class="fas fa-chalkboard-teacher mr-2"></i>Class</label>
       <select id="class_id" name="class_id" class="modern-form-control" required>
-        <% classes.forEach(c => { %>
-        <option value="<%= c.id %>" <% if (c.id === enrollment.class_id) { %>selected<% } %>><%= c.class_name %></option>
-        <% }) %>
+        <option value="">Loading classes...</option>
       </select>
     </div>
     <div class="modern-form-group">
       <label for="enrollment_date"><i class="fas fa-calendar-alt mr-2"></i>Enrollment Date</label>
-      <input type="date" id="enrollment_date" name="enrollment_date" value="<%= enrollment.enrollment_date.toISOString().split('T')[0] %>"
-        class="modern-form-control" readonly>
+      <input type="date" id="enrollment_date" name="enrollment_date" class="modern-form-control" readonly>
     </div>
     <button type="submit" class="modern-btn-primary">
       <i class="fas fa-save"></i>
@@ -146,6 +146,115 @@
       <i class="fas fa-arrow-left"></i> Back
     </a>
   </form>
+
+  <script>
+    // Extract enrollment ID from URL
+    const enrollmentId = window.location.pathname.split('/').pop();
+
+    // Load enrollment data and populate form
+    async function loadEnrollmentData() {
+      try {
+        const response = await fetch(`/api/enrollments/${enrollmentId}/edit`);
+        if (!response.ok) throw new Error('Failed to load enrollment data');
+        const data = await response.json();
+        
+        if (data.enrollment) {
+          document.getElementById('student_name').value = data.enrollment.student_name || '';
+          document.getElementById('student_id_hidden').value = data.enrollment.student_id || '';
+          document.getElementById('enrollment_date').value = data.enrollment.enrollment_date ? 
+            new Date(data.enrollment.enrollment_date).toISOString().split('T')[0] : '';
+          
+          // Set the current class selected
+          const classSelect = document.getElementById('class_id');
+          classSelect.value = data.enrollment.class_id || '';
+        }
+      } catch (error) {
+        console.error('Error loading enrollment:', error);
+        showMessage('Error loading enrollment data', 'error');
+      }
+    }
+
+    // Load available classes
+    async function loadClasses() {
+      try {
+        const response = await fetch('/api/enrollments/new');
+        if (!response.ok) throw new Error('Failed to load classes');
+        const data = await response.json();
+        
+        const classSelect = document.getElementById('class_id');
+        classSelect.innerHTML = '<option value="">Select a class...</option>';
+        
+        if (data.classes && Array.isArray(data.classes)) {
+          data.classes.forEach(cls => {
+            const option = document.createElement('option');
+            option.value = cls.id;
+            option.textContent = cls.name;
+            classSelect.appendChild(option);
+          });
+        }
+      } catch (error) {
+        console.error('Error loading classes:', error);
+        showMessage('Error loading classes', 'error');
+      }
+    }
+
+    // Show message
+    function showMessage(message, type = 'success') {
+      const container = document.getElementById('messageContainer');
+      container.innerHTML = `
+        <div class="p-3 rounded-lg ${type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+          <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'} mr-2"></i>
+          ${message}
+        </div>
+      `;
+      setTimeout(() => {
+        container.innerHTML = '';
+      }, 5000);
+    }
+
+    // Handle form submission
+    document.getElementById('editEnrollmentForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const classId = document.getElementById('class_id').value;
+      
+      if (!classId) {
+        showMessage('Please select a class', 'error');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/enrollments/${enrollmentId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            class_id: parseInt(classId)
+          })
+        });
+
+        if (response.ok) {
+          showMessage('Enrollment updated successfully');
+          setTimeout(() => {
+            window.location.href = '/enrollments';
+          }, 1500);
+        } else {
+          const error = await response.json();
+          showMessage(error.message || 'Error updating enrollment', 'error');
+        }
+      } catch (error) {
+        console.error('Error updating enrollment:', error);
+        showMessage('Error updating enrollment', 'error');
+      }
+    });
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadClasses();
+      loadEnrollmentData();
+    });
+  </script>
 </main>
     <footer class="relative bg-blueGray-200 pt-8 pb-6">
         <div class="container mx-auto px-4">

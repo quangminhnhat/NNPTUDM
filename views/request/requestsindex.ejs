@@ -12,7 +12,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-    <style>
+    
+    <script src="/js/auth-jwt.js"></script>
+   <style>
         .modern-container {
             max-width: 1200px;
             margin: 48px auto;
@@ -103,10 +105,8 @@
     <main>
         <div class="modern-container">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2 class="modern-title"><i class="fas fa-inbox"></i> <%= title %></h2>
-                <% if (user.role !== 'admin') { %>
-                    <a href="/requests/new" class="modern-btn-primary"><i class="fas fa-plus"></i> Create Request</a>
-                <% } %>
+                <h2 class="modern-title"><i class="fas fa-inbox"></i> Requests</h2>
+                <a href="/requests/new" class="modern-btn-primary" id="createBtn" style="display:none;"><i class="fas fa-plus"></i> Create Request</a>
             </div>
 
             <div style="overflow-x: auto;">
@@ -122,42 +122,8 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <% if (requests.length === 0) { %>
-                            <tr><td colspan="7" style="text-align: center; padding: 2rem; color: #6b7280;">No requests found.</td></tr>
-                        <% } else { %>
-                            <% requests.forEach(function(request) { %>
-                            <tr>
-                                <td><%= request.type_name %></td>
-                                <td><%= request.full_name %> (<%= request.username %>)</td>
-                                <td><%= request.description %></td>
-                                <td><%= request.class_name || 'N/A' %></td>
-                                <td>
-                                    <span class="status-badge <%= request.status %>">
-                                        <%= request.status %>
-                                    </span>
-                                </td>
-                                <td><%= new Date(request.created_at).toLocaleDateString() %></td>
-                                <td class="actions">
-                                    <% if (user.role === 'admin' || (user.role === 'teacher' && request.role === 'student')) { %>
-                                        <% if (request.status === 'pending') { %>
-                                            <button onclick="toggleStatus('<%= request.request_id %>', 'approved')" class="action-btn approve-btn">Approve</button>
-                                            <button onclick="toggleStatus('<%= request.request_id %>', 'rejected')" class="action-btn reject-btn">Reject</button>
-                                        <% } else if (request.status === 'approved') { %>
-                                            <button onclick="toggleStatus('<%= request.request_id %>', 'rejected')" class="action-btn reject-btn">Reject</button>
-                                        <% } else if (request.status === 'rejected') { %>
-                                            <button onclick="toggleStatus('<%= request.request_id %>', 'approved')" class="action-btn approve-btn">Approve</button>
-                                        <% } %>
-                                    <% } %>
-                                    
-                                    <% if (request.status === 'pending' && request.user_id === user.id) { %>
-                                        <a href="/requests/<%= request.request_id %>/edit" class="icon-btn" title="Edit" style="color:#2563EB;"><i class="fas fa-edit"></i></a>
-                                        <button onclick="deleteRequest('<%= request.request_id %>')" class="icon-btn delete-btn" title="Delete"><i class="fas fa-trash"></i></button>
-                                    <% } %>
-                                </td>
-                            </tr>
-                            <% }); %>
-                        <% } %>
+                    <tbody id="requestsTableBody">
+                        <tr><td colspan="7" style="text-align: center; padding: 2rem; color: #6b7280;">Loading requests...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -165,38 +131,122 @@
     </main>
 
     <script>
-        async function deleteRequest(requestId) {
-            if (confirm('Are you sure you want to delete this request?')) {
-                try {
-                    const response = await fetch(`/requestDelete/${requestId}`, { method: 'DELETE' });
-                    if (response.ok) {
-                        window.location.reload();
-                    } else {
-                        alert((await response.json()).error || 'Failed to delete request');
-                    }
-                } catch (error) {
-                    alert('Error deleting request');
-                }
-            }
+    let currentUserRole = '';
+    let currentUserId = '';
+    
+    async function loadRequests() {
+      try {
+        // Get user info from token - use authToken not jwtToken
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          throw new Error('No authentication token found. Please log in.');
         }
-
-        async function toggleStatus(requestId) {
-            if (confirm(`Are you sure you want to change this request's status?`)) {
-                try {
-                    const response = await fetch(`/requestToggleStatus/${requestId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                    });
-                    if (response.ok) {
-                        window.location.reload();
-                    } else {
-                        alert((await response.json()).error || 'Failed to update status');
-                    }
-                } catch (error) {
-                    alert('Error updating request status');
-                }
-            }
+        
+        try {
+          const decoded = JSON.parse(atob(token.split('.')[1]));
+          currentUserRole = decoded.role;
+          currentUserId = decoded.id;
+          console.log('User info:', { currentUserRole, currentUserId });
+        } catch (tokenError) {
+          console.error('Error parsing JWT token:', tokenError);
+          throw new Error('Invalid token format');
         }
+        
+        // Show create button if not admin
+        if (currentUserRole !== 'admin') {
+          document.getElementById('createBtn').style.display = 'inline-flex';
+        }
+        
+        console.log('Fetching requests from /api/requests');
+        const response = await fetch('/api/requests');
+        
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP Error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Response data:', data);
+        
+        const requests = data.requests || [];
+        console.log('Requests count:', requests.length);
+        
+        const tbody = document.getElementById('requestsTableBody');
+        
+        if (!requests || requests.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #6b7280;">No requests found.</td></tr>';
+          return;
+        }
+        
+        tbody.innerHTML = requests.map(request => `
+          <tr>
+            <td>${request.type_name}</td>
+            <td>${request.full_name} (${request.username})</td>
+            <td>${request.description}</td>
+            <td>${request.class_name || 'N/A'}</td>
+            <td><span class="status-badge ${request.status}">${request.status}</span></td>
+            <td>${new Date(request.created_at).toLocaleDateString()}</td>
+            <td class="actions">
+              ${(currentUserRole === 'admin' || (currentUserRole === 'teacher' && request.role === 'student')) ? `
+                ${request.status === 'pending' ? `
+                  <button onclick="toggleStatus(${request.request_id})" class="action-btn approve-btn">Approve</button>
+                  <button onclick="toggleStatus(${request.request_id})" class="action-btn reject-btn">Reject</button>
+                ` : request.status === 'approved' ? `
+                  <button onclick="toggleStatus(${request.request_id})" class="action-btn reject-btn">Reject</button>
+                ` : `
+                  <button onclick="toggleStatus(${request.request_id})" class="action-btn approve-btn">Approve</button>
+                `}
+              ` : ''}
+              
+              ${request.status === 'pending' && request.user_id === currentUserId ? `
+                <a href="/requests/${request.request_id}/edit" class="icon-btn" title="Edit" style="color:#2563EB;"><i class="fas fa-edit"></i></a>
+                <button onclick="deleteRequest(${request.request_id})" class="icon-btn delete-btn" title="Delete"><i class="fas fa-trash"></i></button>
+              ` : ''}
+            </td>
+          </tr>
+        `).join('');
+      } catch (error) {
+        console.error('Error loading requests:', error);
+        document.getElementById('requestsTableBody').innerHTML = 
+          `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #ef4444;">Error loading requests: ${error.message}</td></tr>`;
+      }
+    }
+    
+    async function deleteRequest(requestId) {
+      if (confirm('Are you sure you want to delete this request?')) {
+        try {
+          const response = await fetch(`/api/requestDelete/${requestId}`, { method: 'DELETE' });
+          if (response.ok) {
+            loadRequests();
+          } else {
+            alert((await response.json()).error || 'Failed to delete request');
+          }
+        } catch (error) {
+          alert('Error deleting request');
+        }
+      }
+    }
+    
+    async function toggleStatus(requestId) {
+      if (confirm('Are you sure you want to change this request\'s status?')) {
+        try {
+          const response = await fetch(`/api/requestToggleStatus/${requestId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          if (response.ok) {
+            loadRequests();
+          } else {
+            alert((await response.json()).error || 'Failed to update status');
+          }
+        } catch (error) {
+          alert('Error updating request status');
+        }
+      }
+    }
+    
+    document.addEventListener('DOMContentLoaded', loadRequests);
     </script>
 
     <%- include('../shared/footer.ejs') %>

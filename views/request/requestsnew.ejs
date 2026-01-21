@@ -12,7 +12,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-    <style>
+    
+    <script src="/js/auth-jwt.js"></script>
+   <style>
         .modern-container {
             max-width: 1200px;
             margin: 48px auto;
@@ -85,9 +87,6 @@
                 <label for="requestType">Request Type</label>
                 <select name="requestType" id="requestType" class="modern-form-control" required>
                     <option value="">Select Request Type</option>
-                    <% requestTypes.forEach(function(type) { %>
-                        <option value="<%= type.type_name %>"><%= type.type_name %></option>
-                    <% }); %>
                 </select>
             </div>
 
@@ -95,9 +94,6 @@
                 <label for="classId">Related Class (Optional)</label>
                 <select name="classId" id="classId" class="modern-form-control">
                     <option value="">None</option>
-                    <% classes.forEach(function(class_) { %>
-                        <option value="<%= class_.id %>"><%= class_.class_name %></option>
-                    <% }); %>
                 </select>
             </div>
 
@@ -105,8 +101,6 @@
                 <label for="details">Details</label>
                 <textarea name="details" id="details" rows="5" class="modern-form-control" required></textarea>
             </div>
-
-            <input type="hidden" name="userId" value="<%= user.id %>">
             
             <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:2rem;">
                 <a href="/requests" class="modern-btn-secondary"><i class="fas fa-times"></i> Cancel</a>
@@ -117,17 +111,40 @@
 </main>
 
 <script>
+async function loadFormData() {
+  try {
+    const response = await fetch('/api/requests/new');
+    if (!response.ok) throw new Error('Failed to load form data');
+    const data = await response.json();
+    
+    const requestTypes = data.requestTypes || [];
+    const classes = data.classes || [];
+    
+    // Populate request types
+    const typeSelect = document.getElementById('requestType');
+    typeSelect.innerHTML = '<option value="">Select Request Type</option>' +
+      requestTypes.map(t => `<option value="${t.type_name}">${t.type_name}</option>`).join('');
+    
+    // Populate classes
+    const classSelect = document.getElementById('classId');
+    classSelect.innerHTML = '<option value="">None</option>' +
+      classes.map(c => `<option value="${c.id}">${c.class_name}</option>`).join('');
+  } catch (error) {
+    console.error('Error loading form data:', error);
+    alert('Error loading form data');
+  }
+}
+
 document.getElementById('requestForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     try {
-        const response = await fetch('/requestAdd', {
+        const response = await fetch('/api/requestAdd', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                userId: this.userId.value,
-                requestType: this.requestType.value,
-                details: this.details.value,
-                classId: this.classId.value || null
+                requestType: document.getElementById('requestType').value,
+                details: document.getElementById('details').value,
+                classId: document.getElementById('classId').value || null
             })
         });
 
@@ -140,6 +157,8 @@ document.getElementById('requestForm').addEventListener('submit', async function
         alert('Error submitting request');
     }
 });
+
+document.addEventListener('DOMContentLoaded', loadFormData);
 </script>
 
 <%- include('../shared/footer.ejs') %>
