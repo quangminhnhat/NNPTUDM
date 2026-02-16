@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Class</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/mobile.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://demos.creative-tim.com/notus-js/assets/styles/tailwind.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    <link rel="stylesheet" href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
+    <script src="/js/auth-jwt.js"></script>
+    <style>
+        .modern-container {
+            max-width: 1200px;
+            margin: 48px auto 0 auto;
+            padding: 2.5rem 2rem 2rem 2rem;
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(44,62,80,0.10);
+            border: 1px solid #e3e6ed;
+            animation: fadeIn 0.5s;
+        }
+        .modern-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2375D8;
+            text-align: center;
+            margin-bottom: 2rem;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.7rem;
+        }
+        .modern-btn-primary {
+            background: linear-gradient(90deg, #2375D8 0%, #0c9083 100%);
+            color: #fff;
+            font-weight: 700;
+            font-size: 1.1rem;
+            padding: 0.7rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 16px rgba(36,117,216,0.10);
+            transition: background 0.2s, transform 0.15s;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.7rem;
+            text-decoration: none;
+        }
+        .modern-btn-primary:hover {
+            background: linear-gradient(90deg, #0c9083 0%, #2375D8 100%);
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 8px 24px rgba(36,117,216,0.18);
+        }
+        .modern-btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+            font-weight: 600;
+            padding: 0.7rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            transition: background 0.2s, color 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .modern-btn-secondary:hover {
+            background: #d1d5db;
+            color: #111827;
+        }
+        .modern-form label {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.3rem;
+            display: block;
+        }
+        .modern-form input, .modern-form select {
+            width: 100%;
+            padding: 0.6rem 1rem;
+            border: 1px solid #e3e6ed;
+            border-radius: 8px;
+            margin-bottom: 1.2rem;
+            font-size: 1rem;
+            background: #f9fafb;
+            transition: border 0.2s, box-shadow 0.2s;
+        }
+        .modern-form input:focus, .modern-form select:focus {
+            border-color: #2375D8;
+            outline: none;
+            box-shadow: 0 0 0 2px #2375d833;
+        }
+        .modern-form .weekday-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 1.2rem;
+        }
+        .modern-form .weekday-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.95rem;
+        }
+        .modern-checkbox-group {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .modern-checkbox-label {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        .modern-checkbox-label input[type="checkbox"] {
+            width: 5px;
+            height: 5px;
+            border-radius: 6px;
+            border: 2px solid #a0aec0;
+            margin-right: 0.2rem;
+            flex-shrink: 0;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(18px);}
+            to { opacity: 1; transform: translateY(0);}
+        }
+    </style>
+</head>
+
+<body>
+   <%- include('../shared/header.ejs') %>
+ 
+ 
+
+<main>
+      <div class="modern-container">
+        <div class="modern-title">
+          <i class="fas fa-pen-to-square"></i> Edit Class
+        </div>
+        <form id="editClassForm" class="modern-form">
+          <label>Class Name</label>
+          <input type="text" id="class_name" name="class_name" required>
+
+          <label>Course</label>
+          <select id="course_id" name="course_id" required>
+            <option value="">Loading courses...</option>
+          </select>
+
+          <label>Teacher</label>
+          <select id="teacher_id" name="teacher_id" required>
+            <option value="">Loading teachers...</option>
+          </select>
+
+          <div style="display: flex; gap: 1rem;">
+            <div style="flex:1;">
+              <label>Start Time</label>
+              <input type="time" id="start_time" name="start_time" step="3600" required>
+            </div>
+            <div style="flex:1;">
+              <label>End Time</label>
+              <input type="time" id="end_time" name="end_time" step="3600" required>
+            </div>
+          </div>
+
+         <div class="modern-form-group" style="width: 100%;">
+                    <label>Weekly Schedule</label>
+                    <div class="modern-checkbox-group" id="weekday_container" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.3rem; width: 100%;">
+                    </div>
+                </div>
+
+          <div style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem;">
+            <a href="/classes" class="modern-btn-secondary">
+              <i class="fas fa-arrow-left"></i> Back
+            </a>
+            <button type="submit" class="modern-btn-primary">
+              <i class="fas fa-save"></i> Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </main>
+
+    <footer class="relative bg-blueGray-200 pt-8 pb-6">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-wrap text-left lg:text-left">
+                <div class="w-full lg:w-6/12 px-4">
+                    <h4 class="text-3xl fonat-semibold text-blueGray-700">Liên hệ với chúng tôi!</h4>
+                    <h5 class="text-lg mt-0 mb-2 text-blueGray-600">
+                        Tìm kiếm chúng tôi trên bất kỳ mạng xã hội nào và gửi cho chúng tôi một tin nhắn! Chúng tôi sẽ
+                        trả
+                        lời bạn
+                        ngay khi có thể.
+                    </h5>
+                    <div class="mt-6 lg:mb-0 mb-6">
+                        <button
+                            class="bg-white text-lightBlue-400 shadow-lg font-normal h-10 w-10 items-center justify-center align-center rounded-full outline-none focus:outline-none mr-2"
+                            type="button">
+                            <i class="fab fa-twitter"></i></button><button
+                            class="bg-white text-lightBlue-600 shadow-lg font-normal h-10 w-10 items-center justify-center align-center rounded-full outline-none focus:outline-none mr-2"
+                            type="button">
+                            <i class="fab fa-facebook-square"></i></button><button
+                            class="bg-white text-pink-400 shadow-lg font-normal h-10 w-10 items-center justify-center align-center rounded-full outline-none focus:outline-none mr-2"
+                            type="button">
+                            <i class="fab fa-dribbble"></i></button><button
+                            class="bg-white text-blueGray-800 shadow-lg font-normal h-10 w-10 items-center justify-center align-center rounded-full outline-none focus:outline-none mr-2"
+                            type="button">
+                            <i class="fab fa-github"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="w-full lg:w-6/12 px-4">
+                    <div class="flex flex-wrap items-top mb-6">
+                        <div class="w-full lg:w-4/12 px-4 ml-auto">
+                            <span class="block uppercase text-blueGray-500 text-sm font-semibold mb-2">Bạn Đang Tìm
+                                Kiếm</span>
+                            <ul class="list-unstyled">
+                                <li>
+                                    <a class="text-blueGray-600 hover:text-blueGray-800 font-semibold block pb-2 text-sm"
+                                        href="">Liên
+                                        Hệ</a>
+                                </li>
+                                <li>
+                                    <a class="text-blueGray-600 hover:text-blueGray-800 font-semibold block pb-2 text-sm"
+                                        href="">Thông
+                                        Tin Mới</a>
+                                </li>
+                                <li>
+                                    <a class="text-blueGray-600 hover:text-blueGray-800 font-semibold block pb-2 text-sm"
+                                        href="">Tuyển
+                                        Dụng</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <hr class="my-6 border-blueGray-300">
+            <div class="flex flex-wrap items-center md:justify-between justify-center">
+                <div class="w-full md:w-4/12 px-4 mx-auto text-center">
+                    <div class="text-sm text-blueGray-500 font-semibold py-1">
+                        Copyright © <span id="get-current-year">2025</span><a
+                            href="https://www.facebook.com/ttgdvpttnht" class="text-blueGray-500 hover:text-gray-800"
+                            target="_blank"> Talent Education</a>. Made by
+                        <a href="https://github.com/Rin-0808" class="text-blueGray-500 hover:text-blueGray-800">Rin</a>.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+    <script src="/js/script.js"></script>
+    <script src="/js/main.js"></script>
+    <script>
+        let classId = null;
+        let courses = [];
+        let teachers = [];
+        let classItem = null;
+
+        // Extract classId from URL
+        classId = window.location.pathname.split('/')[2];
+
+        async function loadFormData() {
+            try {
+                const response = await AuthJWT.apiCall(`/api/classes/${classId}/edit`, { method: 'GET' });
+                const data = await response.json();
+
+                if (response.ok) {
+                    classItem = data.classItem;
+                    courses = data.courses || [];
+                    teachers = data.teachers || [];
+                    populateForm();
+                } else {
+                    showWarning(data.error || 'Failed to load class data');
+                }
+            } catch (error) {
+                console.error('Error loading form data:', error);
+                showWarning('Failed to load class data');
+            }
+        }
+
+        function populateForm() {
+            // Populate text input
+            document.getElementById('class_name').value = classItem.class_name;
+            document.getElementById('start_time').value = classItem.formatted_start_time;
+            document.getElementById('end_time').value = classItem.formatted_end_time;
+
+            // Populate course select
+            const courseSelect = document.getElementById('course_id');
+            courseSelect.innerHTML = '';
+            courses.forEach(course => {
+                const option = document.createElement('option');
+                option.value = course.id;
+                option.textContent = course.name;
+                option.selected = course.id === classItem.course_id;
+                courseSelect.appendChild(option);
+            });
+
+            // Populate teacher select
+            const teacherSelect = document.getElementById('teacher_id');
+            teacherSelect.innerHTML = '';
+            teachers.forEach(teacher => {
+                const option = document.createElement('option');
+                option.value = teacher.id;
+                option.textContent = teacher.name;
+                option.selected = teacher.id === classItem.teacher_id;
+                teacherSelect.appendChild(option);
+            });
+
+            // Populate weekdays
+            const selectedDays = classItem.weekly_schedule ? classItem.weekly_schedule.split(',').map(Number) : [];
+            const weekdayContainer = document.getElementById('weekday_container');
+            weekdayContainer.innerHTML = '';
+            
+            ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((day, index) => {
+                const label = document.createElement('label');
+                label.className = 'modern-checkbox-label';
+                label.style.cssText = 'display: flex; align-items: center; font-size: 0.95rem; color: #374151; width: 100%;';
+                
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.name = 'weekly_days';
+                input.value = index + 1;
+                input.checked = selectedDays.includes(index + 1);
+                
+                const span = document.createElement('span');
+                span.textContent = day;
+                span.style.flex = '1';
+                
+                label.appendChild(input);
+                label.appendChild(span);
+                weekdayContainer.appendChild(label);
+            });
+        }
+
+        function showWarning(message) {
+            const container = document.querySelector('.modern-container');
+            const alertBox = document.createElement('div');
+            alertBox.className = 'alert-box alert-error';
+            alertBox.style.cssText = 'background-color: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; margin-bottom: 1rem;';
+            alertBox.innerHTML = `<i class="fas fa-exclamation-triangle fa-lg"></i><span>${message}</span>`;
+            container.insertBefore(alertBox, container.firstChild);
+            setTimeout(() => alertBox.remove(), 5000);
+        }
+
+        function showSuccess(message) {
+            const container = document.querySelector('.modern-container');
+            const alertBox = document.createElement('div');
+            alertBox.className = 'alert-box alert-success';
+            alertBox.style.cssText = 'background-color: #dcfce7; color: #166534; border: 1px solid #86efac; margin-bottom: 1rem;';
+            alertBox.innerHTML = `<i class="fas fa-check-circle fa-lg"></i><span>${message}</span>`;
+            container.insertBefore(alertBox, container.firstChild);
+            setTimeout(() => alertBox.remove(), 3000);
+        }
+
+        document.getElementById('editClassForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const startTime = document.getElementById('start_time').value;
+            const endTime = document.getElementById('end_time').value;
+            const weeklyDays = document.querySelectorAll('input[name="weekly_days"]:checked');
+
+            if (weeklyDays.length === 0) {
+                showWarning('Please select at least one day for the weekly schedule.');
+                return;
+            }
+
+            if (startTime >= endTime) {
+                showWarning('End time must be after start time.');
+                return;
+            }
+
+            try {
+                const formData = {
+                    class_name: document.getElementById('class_name').value,
+                    course_id: parseInt(document.getElementById('course_id').value),
+                    teacher_id: parseInt(document.getElementById('teacher_id').value),
+                    start_time: startTime,
+                    end_time: endTime,
+                    weekly_days: Array.from(weeklyDays).map(cb => parseInt(cb.value))
+                };
+
+                const response = await AuthJWT.apiCall(`/api/classes/${classId}`, {
+                    method: 'POST',
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showWarning(data.error || 'Failed to update class');
+                    return;
+                }
+
+                showSuccess('Class updated successfully! Redirecting...');
+                setTimeout(() => {
+                    window.location.href = '/classes';
+                }, 1500);
+            } catch (error) {
+                console.error('Error:', error);
+                showWarning('An error occurred: ' + error.message);
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', loadFormData);
+    </script>
+</body>
+
+</html>

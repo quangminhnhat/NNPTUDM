@@ -16,51 +16,51 @@ const session = require("express-session");
 const methodOverride = require("method-override");
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
-const { authenticateRole } = require("./middleware/roleAuth");
+const { authenticateRole } = require("./app/middleware/roleAuth");
 const multer = require("multer");
 const fs = require("fs");
 const os = require("os");
 const https = require("https");
 const connectionString = process.env.CONNECTION_STRING;
-const upload = require("./middleware/upload");
-const courseImageUpload = require("./middleware/courseImageUpload");
-const executeQuery = require("./middleware/executeQuery");
+const upload = require("./app/middleware/upload");
+const courseImageUpload = require("./app/middleware/courseImageUpload");
+const executeQuery = require("./app/middleware/executeQuery");
 const {
   checkAuthenticated,
   checkNotAuthenticated,
-} = require("./middleware/auth");
-const validateSchedule = require("./middleware/validateSchedule");
+} = require("./app/middleware/auth");
+const validateSchedule = require("./app/middleware/validateSchedule");
 
 // Static files
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "app/public")));
 
 //routes
-const materialRoutes = require("./routes/materialRoutes");
-const notificationRoutes = require("./routes/notificationsroutes");
-const materialsRoutes = require("./routes/materialsroute");
-const userRoutes = require("./routes/usersRoutes");
-const courseRoutes = require("./routes/coursesRoutes");
-const uploadmaterialRoutes = require("./routes/upload-materialRoutes");
-const scheduleRoutes = require("./routes/scheduleRoutes");
-const classesRoutes = require("./routes/classesRoutes");
-const enrollmentsRoutes = require("./routes/enrollmentsRoutes");
-const miscroutes = require("./routes/MiscRoute");
-const requestRoute = require("./routes/requestRoute");
-const examRoutes = require("./routes/examRoutes");
+const materialRoutes = require("./app/controller/materialRoutes");
+const notificationRoutes = require("./app/controller/notificationsroutes");
+const materialsRoutes = require("./app/controller/materialsroute");
+const userRoutes = require("./app/controller/usersRoutes");
+const courseRoutes = require("./app/controller/coursesRoutes");
+const uploadmaterialRoutes = require("./app/controller/upload-materialRoutes");
+const scheduleRoutes = require("./app/controller/scheduleRoutes");
+const classesRoutes = require("./app/controller/classesRoutes");
+const enrollmentsRoutes = require("./app/controller/enrollmentsRoutes");
+const miscroutes = require("./app/controller/MiscRoute");
+const requestRoute = require("./app/controller/requestRoute");
+const examRoutes = require("./app/controller/examRoutes");
 
 // API Routes (JSON responses)
-const apiClassesRoutes = require("./routes/api/apiclassesRoutes");
-const apiCoursesRoutes = require("./routes/api/apicoursesRoutes");
-const apiEnrollmentsRoutes = require("./routes/api/apienrollmentsRoutes");
-const apiExamRoutes = require("./routes/api/apiexamRoutes");
-const apiMaterialRoutes = require("./routes/api/apimaterialRoutes");
-const apiMaterialsRoutes = require("./routes/api/apimaterialsroute");
-const apiMiscRoutes = require("./routes/api/apiMiscRoute");
-const apiNotificationRoutes = require("./routes/api/apinotificationsroutes");
-const apiRequestRoutes = require("./routes/api/apirequestRoute");
-const apiScheduleRoutes = require("./routes/api/apischeduleRoutes");
-const apiUploadMaterialRoutes = require("./routes/api/apiupload-materialRoutes");
-const apiUsersRoutes = require("./routes/api/apiusersRoutes");
+const apiClassesRoutes = require("./app/controller/api/apiclassesRoutes");
+const apiCoursesRoutes = require("./app/controller/api/apicoursesRoutes");
+const apiEnrollmentsRoutes = require("./app/controller/api/apienrollmentsRoutes");
+const apiExamRoutes = require("./app/controller/api/apiexamRoutes");
+const apiMaterialRoutes = require("./app/controller/api/apimaterialRoutes");
+const apiMaterialsRoutes = require("./app/controller/api/apimaterialsroute");
+const apiMiscRoutes = require("./app/controller/api/apiMiscRoute");
+const apiNotificationRoutes = require("./app/controller/api/apinotificationsroutes");
+const apiRequestRoutes = require("./app/controller/api/apirequestRoute");
+const apiScheduleRoutes = require("./app/controller/api/apischeduleRoutes");
+const apiUploadMaterialRoutes = require("./app/controller/api/apiupload-materialRoutes");
+const apiUsersRoutes = require("./app/controller/api/apiusersRoutes");
 
 
 // Essential middleware
@@ -84,7 +84,7 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-const initalizePassport = require("./middleware/pass-config");
+const initalizePassport = require("./app/middleware/pass-config");
 initalizePassport(
   passport,
   (email) => {
@@ -157,7 +157,7 @@ const swaggerOptions = {
       },
     ],
   },
-  apis: [path.join(__dirname, 'routes/api/*.js'), path.join(__dirname, 'server.js')], // Path to the API docs
+  apis: [path.join(__dirname, 'controller/api/*.js'), path.join(__dirname, 'server.js')], // Path to the API docs
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
@@ -364,7 +364,7 @@ app.delete("/logout", (req, res) => {
 
 
 app.set("view engine", "ejs");
-app.set("views", path.join(__dirname, "views"));
+app.set("views", path.join(__dirname, "app/views"));
 
 //route end
 

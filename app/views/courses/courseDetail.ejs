@@ -1,0 +1,137 @@
+<div class="container mx-auto px-4 py-8">
+    <div class="bg-white shadow-lg rounded-lg overflow-hidden">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-2xl font-bold text-gray-800" id="courseTitle">Loading...</h1>
+                <div class="flex space-x-2" id="adminActions"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div>
+                    <h2 class="text-lg font-semibold mb-2">Course Details</h2>
+                    <div class="space-y-2">
+                        <p><span class="font-medium">Start Date:</span> <span id="startDate"></span></p>
+                        <p><span class="font-medium">End Date:</span> <span id="endDate"></span></p>
+                        <p><span class="font-medium">Tuition Fee:</span> <span id="tuitionFee"></span></p>
+                        <p class="text-gray-700" id="description"></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8">
+                <h2 class="text-lg font-semibold mb-4">Classes (<span id="classCount">0</span>)</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teacher</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="classesList">
+                            <tr><td colspan="5" style="text-align:center; padding:2rem;">Loading classes...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="mt-8">
+                <h2 class="text-lg font-semibold mb-4">Materials (<span id="materialCount">0</span>)</h2>
+                <div id="materialsList">
+                    <p style="text-align:center; color:#888;">Loading materials...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="/js/auth-jwt.js"></script>
+<script>
+  const courseId = window.location.pathname.split('/').pop();
+  
+  async function loadCourseDetail() {
+    try {
+      const response = await AuthJWT.apiCall(`/api/course-detail/${courseId}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) throw new Error('Failed to load course');
+      
+      const data = await response.json();
+      const course = data.course;
+      const user = data.user;
+      
+      document.getElementById('courseTitle').textContent = course.course_name;
+      document.getElementById('startDate').textContent = new Date(course.start_date).toLocaleDateString();
+      document.getElementById('endDate').textContent = new Date(course.end_date).toLocaleDateString();
+      document.getElementById('tuitionFee').textContent = course.tuition_fee ? course.tuition_fee.toLocaleString() + ' VND' : 'Not set';
+      document.getElementById('description').textContent = course.description;
+      
+      if (user?.role === 'admin') {
+        document.getElementById('adminActions').innerHTML = `
+          <a href="/courses/${course.id}/edit" 
+             class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
+            Edit Course
+          </a>
+        `;
+      }
+      
+      loadCourseData(courseId);
+    } catch (error) {
+      console.error('Error loading course:', error);
+      document.getElementById('courseTitle').textContent = 'Error loading course: ' + error.message;
+    }
+  }
+  
+  async function loadCourseData(courseId) {
+    try {
+      const response = await AuthJWT.apiCall(`/api/courses/${courseId}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) throw new Error('Failed to load course data');
+      
+      const data = await response.json();
+      const course = data.course;
+      
+      document.getElementById('classCount').textContent = course.classes.length;
+      document.getElementById('materialCount').textContent = course.materials.length;
+      
+      const classesList = document.getElementById('classesList');
+      if (course.classes.length === 0) {
+        classesList.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:2rem;">No classes available</td></tr>';
+      } else {
+        classesList.innerHTML = course.classes.map(cls => `
+          <tr>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${cls.class_name}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${cls.teacher_name}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${cls.start_time} - ${cls.end_time}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${cls.schedule}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${cls.student_count}</td>
+          </tr>
+        `).join('');
+      }
+      
+      const materialsList = document.getElementById('materialsList');
+      if (course.materials.length === 0) {
+        materialsList.innerHTML = '<p style="text-align:center; color:#888;">No materials available</p>';
+      } else {
+        materialsList.innerHTML = '<ul style="list-style:none; padding:0;">' + course.materials.map(material => `
+          <li style="padding:0.75rem; border-bottom:1px solid #eee;">
+            <i class="fas fa-file-alt"></i> ${material.file_name}
+            <br><small style="color:#888;">Uploaded: ${new Date(material.uploaded_at).toLocaleDateString()}</small>
+          </li>
+        `).join('') + '</ul>';
+      }
+    } catch (error) {
+      console.error('Error loading course data:', error);
+      document.getElementById('classesList').innerHTML = `<tr><td colspan="5" style="text-align:center; color:#ef4444; padding:2rem;">Error loading: ${error.message}</td></tr>`;
+    }
+  }
+  
+  document.addEventListener('DOMContentLoaded', loadCourseDetail);
+</script>

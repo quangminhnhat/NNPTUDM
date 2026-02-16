@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>TKB Tuần</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trang Chủ</title>
+  <link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="/css/mobile.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://demos.creative-tim.com/notus-js/assets/styles/tailwind.css">
+  <!-- link swiper-->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+  <link rel="stylesheet"
+    href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
+  <script src="/js/auth-jwt.js"></script>
+</head>
+
+<body class>
+
+
+  <%- include('../shared/header.ejs') %>
+ 
+ 
+
+<main>
+  <div class="modern-table-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+      <div class="modern-table-title">
+        <i class="fas fa-calendar-alt"></i> Thời khóa biểu tuần
+      </div>
+      <div class="modern-week-nav">
+        <a href="/schedule" class="modern-btn-primary">Tuần hiện tại</a>
+        <a href="/schedule?weekStart=" id="prevWeekBtn" class="modern-btn-secondary">&lt;</a>
+        <div class="modern-week-range" id="weekRange">Loading...</div>
+        <a href="/schedule?weekStart=" id="nextWeekBtn" class="modern-btn-secondary">&gt;</a>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="modern-table" style="min-width:900px;">
+        <thead>
+          <tr id="headerRow">
+            <th>Tiết</th>
+          </tr>
+        </thead>
+        <tbody id="scheduleTable">
+          <tr><td colspan="8" style="text-align:center; padding: 2rem;">Loading schedule...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<style>
+  .modern-table-container {
+    max-width: 1200px;
+    margin: 48px auto 0 auto;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 4px 24px rgba(44, 62, 80, 0.10);
+    border: 1px solid #e3e6ed;
+    padding: 2.5rem 2rem 2rem 2rem;
+    animation: fadeIn 0.5s;
+  }
+  .modern-table-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #2375D8;
+    text-align: center;
+    margin-bottom: 2rem;
+    letter-spacing: 1px;
+  }
+  .modern-week-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+  }
+  .modern-btn-primary {
+    background: linear-gradient(90deg, #2375D8 0%, #0c9083 100%);
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 0.7rem 1.5rem;
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(36, 117, 216, 0.10);
+    transition: background 0.2s, transform 0.15s;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    text-decoration: none;
+  }
+  .modern-btn-primary:hover {
+    background: linear-gradient(90deg, #0c9083 0%, #2375D8 100%);
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 8px 24px rgba(36, 117, 216, 0.18);
+  }
+  .modern-btn-secondary {
+    background: #e5e7eb;
+    color: #2375D8;
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 0.7rem 1.5rem;
+    border: none;
+    border-radius: 10px;
+    margin-left: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    transition: background 0.2s, color 0.2s;
+    text-decoration: none;
+  }
+  .modern-btn-secondary:hover {
+    background: #d1d5db;
+    color: #0c9083;
+  }
+  .modern-week-range {
+    font-size: 1rem;
+    color: #374151;
+    background: #f7fafc;
+    border-radius: 8px;
+    padding: 0.4rem 1.2rem;
+    margin: 0 0.2rem;
+    font-weight: 500;
+  }
+  .modern-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1.5rem;
+    background: #f9fafb;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(44, 62, 80, 0.06);
+  }
+  .modern-table th {
+    background: linear-gradient(90deg, #2375D8 0%, #0c9083 100%);
+    color: #fff;
+    font-weight: 700;
+    border: none;
+    padding: 12px 8px;
+    text-align: center;
+    font-size: 1rem;
+  }
+  .modern-table td {
+    background: #f9fafb;
+    border: none;
+    padding: 10px 8px;
+    color: #22223b;
+    text-align: left;
+    vertical-align: top;
+  }
+  .modern-schedule-period {
+    background: #0c9083;
+    color: #fff;
+    font-weight: 600;
+    text-align: center;
+    border-radius: 8px;
+    font-size: 1rem;
+    min-width: 70px;
+  }
+  .modern-class-card {
+    border-left: 4px solid #2375D8;
+    background: #e6f0fa;
+    border-radius: 8px;
+    padding: 0.5rem 0.7rem;
+    margin-bottom: 0.2rem;
+    box-shadow: 0 2px 8px rgba(44,62,80,0.06);
+    width: 100%;
+  }
+  .modern-class-card.special {
+    border-left: 4px solid #fbbf24;
+    background: #fffbe6;
+  }
+  .modern-class-title {
+    font-weight: 700;
+    color: #2375D8;
+    font-size: 1.05rem;
+    margin-bottom: 0.1rem;
+  }
+  .modern-class-sub {
+    color: #374151;
+    font-size: 0.98rem;
+    margin-bottom: 0.1rem;
+  }
+  .modern-class-teacher {
+    color: #6b7280;
+    font-size: 0.92rem;
+  }
+  .modern-schedule-empty {
+    color: #cbd5e1;
+    text-align: center;
+    width: 100%;
+    height: 100%;
+    font-size: 0.95rem;
+    padding-top: 0.7rem;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(18px);}
+    to { opacity: 1; transform: translateY(0);}
+  }
+</style>
+  <footer class="relative bg-blueGray-200 pt-8 pb-6">
+    <div class="container mx-auto px-4">
+      <div class="flex flex-wrap text-left lg:text-left">
+        <div class="w-full lg:w-6/12 px-4">
+          <h4 class="text-3xl fonat-semibold text-blueGray-700">Liên hệ với chúng tôi!</h4>
+          <h5 class="text-lg mt-0 mb-2 text-blueGray-600">
+            Tìm kiếm chúng tôi trên bất kỳ mạng xã hội nào và gửi cho chúng tôi một tin nhắn! Chúng tôi sẽ trả lời bạn
+            ngay khi có thể.
+          </h5>
+          <div class="mt-6 lg:mb-0 mb-6">
+            <button
+              class="bg-white text-lightBlue-400 shadow-lg font-normal h-10 w-10 items-center justify-center align-center rounded-full outline-none focus:outline-none mr-2"
+              type="button">
+              <i class="fab fa-twitter"></i></button><button
+              class="bg-white text-lightBlue-600 shadow-lg font-normal h-10 w-10 items-center justify-center align-center rounded-full outline-none focus:outline-none mr-2"
+              type="button">
+              <i class="fab fa-facebook-square"></i></button><button
+              class="bg-white text-pink-400 shadow-lg font-normal h-10 w-10 items-center justify-center align-center rounded-full outline-none focus:outline-none mr-2"
+              type="button">
+              <i class="fab fa-dribbble"></i></button><button
+              class="bg-white text-blueGray-800 shadow-lg font-normal h-10 w-10 items-center justify-center align-center rounded-full outline-none focus:outline-none mr-2"
+              type="button">
+              <i class="fab fa-github"></i>
+            </button>
+          </div>
+        </div>
+        <div class="w-full lg:w-6/12 px-4">
+          <div class="flex flex-wrap items-top mb-6">
+            <div class="w-full lg:w-4/12 px-4 ml-auto">
+              <span class="block uppercase text-blueGray-500 text-sm font-semibold mb-2">Bạn Đang Tìm Kiếm</span>
+              <ul class="list-unstyled">
+                <li>
+                  <a class="text-blueGray-600 hover:text-blueGray-800 font-semibold block pb-2 text-sm" href="">Liên
+                    Hệ</a>
+                </li>
+                <li>
+                  <a class="text-blueGray-600 hover:text-blueGray-800 font-semibold block pb-2 text-sm" href="">Thông
+                    Tin Mới</a>
+                </li>
+                <li>
+                  <a class="text-blueGray-600 hover:text-blueGray-800 font-semibold block pb-2 text-sm" href="">Tuyển
+                    Dụng</a>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <hr class="my-6 border-blueGray-300">
+      <div class="flex flex-wrap items-center md:justify-between justify-center">
+        <div class="w-full md:w-4/12 px-4 mx-auto text-center">
+          <div class="text-sm text-blueGray-500 font-semibold py-1">
+            Copyright © <span id="get-current-year">2025</span><a href="https://www.facebook.com/ttgdvpttnht"
+              class="text-blueGray-500 hover:text-gray-800" target="_blank"> Talent Education</a>. Made by
+            <a href="https://github.com/Rin-0808" class="text-blueGray-500 hover:text-blueGray-800">Rin</a>.
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+  <script src="/js/main.js"></script>
+  <script>
+    function getWeekStart(date) {
+      const d = new Date(date);
+      const day = d.getUTCDay();
+      const diff = d.getUTCDate() - day;
+      return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), diff));
+    }
+
+    function formatDate(date) {
+      return date.toISOString().split('T')[0];
+    }
+
+    function addDays(date, days) {
+      const result = new Date(date);
+      result.setUTCDate(result.getUTCDate() + days);
+      return result;
+    }
+
+    function getWeekDays(weekStart) {
+      const days = [];
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      for (let i = 0; i < 7; i++) {
+        const date = addDays(weekStart, i);
+        days.push({
+          name: dayNames[i],
+          date: formatDate(date),
+          iso: formatDate(date)
+        });
+      }
+      return days;
+    }
+
+    function timeToPeriod(timeStr) {
+      if (!timeStr) return 0;
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const totalMinutes = hours * 60 + minutes;
+      
+      // Period times (assuming 50 min periods with 10 min breaks)
+      const periodStart = 420; // 7:00 AM
+      const periodDuration = 50;
+      const breakDuration = 10;
+      
+      let currentTime = periodStart;
+      for (let p = 1; p <= 15; p++) {
+        if (totalMinutes >= currentTime && totalMinutes < currentTime + periodDuration) {
+          return p;
+        }
+        currentTime += periodDuration + breakDuration;
+      }
+      return 0;
+    }
+
+    async function loadScheduleView() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        let weekStart = params.get('weekStart');
+        
+        if (!weekStart) {
+          weekStart = formatDate(getWeekStart(new Date()));
+        }
+        
+        const weekStartDate = new Date(weekStart + 'T00:00:00Z');
+        
+        const response = await AuthJWT.apiCall(`/api/schedule?weekStart=${weekStart}`, { method: 'GET' });
+        if (!response.ok) throw new Error('Failed to load schedule');
+        const data = await response.json();
+        
+        console.log('API Response:', data);
+        
+        const days = data.days || getWeekDays(weekStartDate);
+        const scheduleData = data.scheduleData || [];
+        
+        // Render day headers
+        const headerRow = document.getElementById('headerRow');
+        const dayHeaders = days.map(day => 
+          `<th>${day.name}<br><span style="font-weight:400;font-size:0.95em;">${day.date}</span></th>`
+        ).join('');
+        headerRow.innerHTML += dayHeaders;
+        
+        // Update week navigation
+        const prevWeek = addDays(weekStartDate, -7);
+        const nextWeek = addDays(weekStartDate, 7);
+        document.getElementById('prevWeekBtn').href = `/schedule?weekStart=${formatDate(prevWeek)}`;
+        document.getElementById('nextWeekBtn').href = `/schedule?weekStart=${formatDate(nextWeek)}`;
+        document.getElementById('weekRange').textContent = 
+          `Tuần: ${days[0].date} – ${days[6].date}`;
+        
+        // Render schedule table
+        let tableHtml = '';
+        for (let period = 1; period <= 15; period++) {
+          tableHtml += `<tr><td class="modern-schedule-period">Tiết ${period}</td>`;
+          
+          for (const day of days) {
+            let cellHtml = '<td style="vertical-align:top;min-width:120px;">';
+            
+            const classForPeriod = scheduleData.find(cls => {
+              return cls.date === day.iso && period >= cls.startPeriod && period <= cls.endPeriod;
+            });
+            
+            if (classForPeriod) {
+              cellHtml += `
+                <div class="modern-class-card">
+                  <div class="modern-class-title">${classForPeriod.courseName || 'N/A'}</div>
+                  <div class="modern-class-sub">${classForPeriod.className || 'N/A'}</div>
+                  <div class="modern-class-teacher">${classForPeriod.teacher || 'N/A'}</div>
+                </div>
+              `;
+            } else {
+              cellHtml += '<div class="modern-schedule-empty"></div>';
+            }
+            cellHtml += '</td>';
+            tableHtml += cellHtml;
+          }
+          tableHtml += '</tr>';
+        }
+        
+        document.getElementById('scheduleTable').innerHTML = tableHtml;
+      } catch (error) {
+        console.error('Error loading schedule:', error);
+        document.getElementById('scheduleTable').innerHTML = 
+          '<tr><td colspan="8" style="text-align:center; padding: 2rem; color: #ef4444;">Error loading schedule</td></tr>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadScheduleView);
+  </script>
+
+</html>
