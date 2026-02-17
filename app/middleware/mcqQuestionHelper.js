@@ -1,5 +1,22 @@
 const executeQuery = require("./executeQuery");
 
+function mapDifficulty(d) {
+    if (d === undefined || d === null || d === '') return null;
+    if (typeof d === 'number') return d;
+    const n = parseInt(d);
+    if (!isNaN(n)) return n;
+    const s = ('' + d).toLowerCase().trim();
+    if (s === 'easy') return 1;
+    if (s === 'medium') return 2;
+    if (s === 'hard') return 3;
+    return null;
+}
+
+function sqlQuote(v) {
+    if (v === undefined || v === null) return 'NULL';
+    return `N'${('' + v).replace(/'/g, "''")}'`;
+}
+
 async function deleteMCQQuestion(questionId) {
     try {
         // Delete all associated media files
@@ -27,14 +44,18 @@ async function deleteMCQQuestion(questionId) {
 async function editMCQQuestion(questionId, questionData, files) {
     try {
         // Update the base question
-        const updateQuestionQuery = `
-            UPDATE Questions 
-            SET points = ${questionData.points},
-                body_text = '${questionData.body_text}',
-                difficulty = ${questionData.difficulty || 'NULL'},
-                updated_at = GETDATE()
-            WHERE question_id = ${questionId} AND type_id = 1
-        `;
+            const diffNum = mapDifficulty(questionData.difficulty);
+            const difficultySql = diffNum === null ? 'NULL' : diffNum;
+            const bodySql = sqlQuote(questionData.body_text);
+
+            const updateQuestionQuery = `
+                UPDATE Questions 
+                SET points = ${questionData.points},
+                    body_text = ${bodySql},
+                    difficulty = ${difficultySql},
+                    updated_at = GETDATE()
+                WHERE question_id = ${questionId} AND type_id = 1
+            `;
         await executeQuery(updateQuestionQuery);
 
         // Handle media files
@@ -46,7 +67,7 @@ async function editMCQQuestion(questionId, questionData, files) {
             for (const file of files) {
                 const mediaQuery = `
                     INSERT INTO QuestionMedia (question_id, file_name, file_url, caption, file_data, created_at)
-                    VALUES (${questionId}, '${file.originalname}', '${file.path}', NULL, NULL, GETDATE())
+                    VALUES (${questionId}, ${sqlQuote(file.originalname)}, ${sqlQuote(file.path)}, NULL, NULL, GETDATE())
                 `;
                 await executeQuery(mediaQuery);
             }
@@ -84,11 +105,13 @@ async function editMCQQuestion(questionId, questionData, files) {
             await executeQuery(`DELETE FROM MCQOptions WHERE question_id = ${questionId}`);
             
             // Add updated options
-            const options = JSON.parse(questionData.options);
+            const options = JSON.parse(questionData.options || '[]');
             for (const option of options) {
+                const optText = sqlQuote(option.text || option.option || '');
+                const optExpl = option.explanation ? sqlQuote(option.explanation) : 'NULL';
                 const optionQuery = `
                     INSERT INTO MCQOptions (question_id, option_text, is_correct, explanation)
-                    VALUES (${questionId}, '${option.text}', ${option.isCorrect ? 1 : 0}, ${option.explanation ? `'${option.explanation}'` : 'NULL'})
+                    VALUES (${questionId}, ${optText}, ${option.isCorrect ? 1 : 0}, ${optExpl})
                 `;
                 await executeQuery(optionQuery);
             }
@@ -111,10 +134,14 @@ async function editMCQQuestion(questionId, questionData, files) {
 async function createMCQQuestion(examId, questionData, files) {
     try {
         // Insert the base question
+        const diffNum = mapDifficulty(questionData.difficulty);
+        const difficultyValue = diffNum === null ? 'NULL' : diffNum;
+        const bodySql = sqlQuote(questionData.body_text);
+
         const questionQuery = `
             INSERT INTO Questions (exam_id, type_id, points, body_text, difficulty, created_at)
             OUTPUT INSERTED.question_id
-            VALUES (${examId === 'bank' ? 'NULL' : examId}, 1, ${questionData.points}, N'${questionData.body_text}', ${questionData.difficulty || 'NULL'}, GETDATE())
+            VALUES (${examId === 'bank' ? 'NULL' : examId}, 1, ${questionData.points}, ${bodySql}, ${difficultyValue}, GETDATE())
         `;
         const question = await executeQuery(questionQuery);
         const questionId = question[0].question_id;
@@ -124,7 +151,7 @@ async function createMCQQuestion(examId, questionData, files) {
             for (const file of files) {
                 const mediaQuery = `
                     INSERT INTO QuestionMedia (question_id, file_name, file_url, caption, file_data, created_at)
-                    VALUES (${questionId}, '${file.originalname}', '${file.path}', NULL, NULL, GETDATE())
+                    VALUES (${questionId}, ${sqlQuote(file.originalname)}, ${sqlQuote(file.path)}, NULL, NULL, GETDATE())
                 `;
                 await executeQuery(mediaQuery);
             }
@@ -132,11 +159,13 @@ async function createMCQQuestion(examId, questionData, files) {
 
         // Handle MCQ options
         if (questionData.options) {
-            const options = JSON.parse(questionData.options);
+            const options = JSON.parse(questionData.options || '[]');
             for (const option of options) {
+                const optText = sqlQuote(option.text || option.option || '');
+                const optExpl = option.explanation ? sqlQuote(option.explanation) : 'NULL';
                 const optionQuery = `
                     INSERT INTO MCQOptions (question_id, option_text, is_correct, explanation)
-                    VALUES (${questionId}, '${option.text}', ${option.isCorrect ? 1 : 0}, ${option.explanation ? `'${option.explanation}'` : 'NULL'})
+                    VALUES (${questionId}, ${optText}, ${option.isCorrect ? 1 : 0}, ${optExpl})
                 `;
                 await executeQuery(optionQuery);
             }

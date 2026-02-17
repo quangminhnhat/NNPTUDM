@@ -6,6 +6,7 @@ const bcrypt = require("bcrypt");
 const sql = require("msnodesqlv8");
 const multer = require("multer");
 const fs = require("fs");
+const xlsx = require('xlsx');
 const { authenticateRole } = require("../../middleware/roleAuth");
 const executeQuery = require("../../middleware/executeQuery");
 const { createMCQQuestion, editMCQQuestion, deleteMCQQuestion } = require("../../middleware/mcqQuestionHelper");
@@ -241,6 +242,179 @@ router.post('/exam/new', checkAuthenticated, authenticateRole(['teacher']), asyn
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error creating exam" });
+  }
+});
+
+// Import exam and questions from Excel file
+router.post('/exams/import', checkAuthenticated, authenticateRole(['teacher']), upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+
+    const workbook = xlsx.readFile(req.file.path);
+
+    // Read workbook for metadata and questions. Support:
+    // - Separate sheets: 'Exam' and 'Questions'
+    // - Combined single sheet: one row with exam metadata and subsequent rows with question_text
+    let meta = {};
+    let questionRows = [];
+
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    // Read as array-of-arrays so we can detect a later header row for questions
+    const firstAOA = xlsx.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+
+    // Try to find a row that is clearly the question header (contains 'question_text' or 'question')
+    let questionHeaderRowIndex = -1;
+    for (let i = 0; i < firstAOA.length; i++) {
+      const row = firstAOA[i].map(c => ('' + c).toLowerCase());
+      if (row.some(c => c === 'question_text' || c === 'question' || c === 'body')) {
+        questionHeaderRowIndex = i;
+        break;
+      }
+    }
+
+    if (workbook.SheetNames.includes('Exam') || (questionHeaderRowIndex === -1 && firstAOA.length === 2)) {
+      // Use explicit Exam sheet or single-row first sheet as metadata
+      if (workbook.SheetNames.includes('Exam')) {
+        const sheet = workbook.Sheets['Exam'];
+        const rows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+        if (rows.length > 0) meta = rows[0];
+      } else {
+        // interpret first sheet's first data row as metadata (headers present)
+        const rows = xlsx.utils.sheet_to_json(firstSheet, { defval: '' });
+        if (rows.length > 0) meta = rows[0];
+      }
+      // try to find Questions sheet
+      let qSheetName = 'Questions';
+      if (!workbook.SheetNames.includes(qSheetName)) {
+        qSheetName = workbook.SheetNames.find(n => n.toLowerCase().includes('question')) || null;
+      }
+      if (qSheetName) {
+        questionRows = xlsx.utils.sheet_to_json(workbook.Sheets[qSheetName], { defval: '' });
+      }
+    } else if (questionHeaderRowIndex >= 0) {
+      // Combined sheet where exam metadata appears earlier and question header appears later.
+      // Assume exam headers are at row 0 and metadata at row 1 (common pattern).
+      const examRows = xlsx.utils.sheet_to_json(firstSheet, { defval: '' });
+      meta = examRows && examRows.length > 0 ? examRows[0] : {};
+
+      // Build questionRows by mapping the question header row to following rows
+      const qHeader = firstAOA[questionHeaderRowIndex].map(h => ('' + h).trim());
+      for (let r = questionHeaderRowIndex + 1; r < firstAOA.length; r++) {
+        const row = firstAOA[r];
+        if (!row || row.length === 0 || row.every(c => c === '')) continue;
+        const obj = {};
+        for (let c = 0; c < qHeader.length; c++) {
+          const key = qHeader[c] || (`col${c}`);
+          obj[key] = row[c] !== undefined ? row[c] : '';
+        }
+        questionRows.push(obj);
+      }
+    } else {
+      // Fallback: treat rows with question_text keys as questions
+      const rows = xlsx.utils.sheet_to_json(firstSheet, { defval: '' });
+      meta = rows.find(r => r.exam_title || r.title) || rows[0] || {};
+      questionRows = rows.filter(r => r.question_text || r.question || r.body);
+    }
+
+    const exam_title = (meta.exam_title || meta.title || 'Imported Exam').toString().replace(/'/g, "''");
+    const description = (meta.description || '').toString().replace(/'/g, "''");
+    const duration_minutes = parseInt(meta.duration_minutes) || 0;
+    const total_marks = parseInt(meta.total_marks) || 0;
+    const passing_marks = meta.passing_marks !== undefined && meta.passing_marks !== '' ? parseInt(meta.passing_marks) : null;
+
+    // Get teacher id
+    const teacherQuery = `
+      SELECT t.id FROM teachers t 
+      JOIN users u ON t.user_id = u.id 
+      WHERE u.id = ${req.user.id}
+    `;
+    const teacher = await executeQuery(teacherQuery);
+    if (!teacher || teacher.length === 0) {
+      return res.status(403).json({ message: "Only teachers can create exams" });
+    }
+
+    // Insert exam
+    const examCode = 'EXAM' + Date.now().toString().slice(-6);
+    const insertExamQuery = `
+      INSERT INTO Exams (teachers_id, exam_code, exam_title, description, duration_min, total_points, passing_points, created_at)
+      OUTPUT INSERTED.exam_id
+      VALUES (${teacher[0].id}, '${examCode}', N'${exam_title}', N'${description}', ${duration_minutes}, ${total_marks}, ${passing_marks === null ? 'NULL' : passing_marks}, GETDATE())
+    `;
+    const inserted = await executeQuery(insertExamQuery);
+    const examId = inserted[0].exam_id;
+
+    // Process questionRows collected earlier
+    for (const q of questionRows) {
+        const body_text = (q.question_text || q.body || q.question || '').toString().replace(/'/g, "''");
+        const points = parseInt(q.points) || 1;
+        const difficulty = q.difficulty ? q.difficulty : null;
+
+        // Prepare options if present (support JSON array or delimited strings)
+        let optionsArr = null;
+        if (q.options) {
+          if (typeof q.options === 'string' && q.options.trim().startsWith('[')) {
+            try { optionsArr = JSON.parse(q.options); } catch (e) { optionsArr = null; }
+          } else if (typeof q.options === 'string' && q.options.includes('||')) {
+            optionsArr = q.options.split('||').map(t => ({ text: t.trim(), isCorrect: false }));
+          } else if (typeof q.options === 'string' && q.options.includes('|')) {
+            optionsArr = q.options.split('|').map(t => ({ text: t.trim(), isCorrect: false }));
+          } else if (Array.isArray(q.options)) {
+            optionsArr = q.options;
+          }
+
+          // Mark correct option if provided (index or exact text)
+          if (optionsArr && q.correct_answer !== undefined && q.correct_answer !== null) {
+            const ca = q.correct_answer;
+            if (!isNaN(ca)) {
+              const idx = parseInt(ca) - 1;
+              optionsArr = optionsArr.map((o, i) => (typeof o === 'object' ? { text: o.text || o.option || o, isCorrect: i === idx } : { text: o, isCorrect: i === idx }));
+            } else {
+              optionsArr = optionsArr.map(o => (typeof o === 'object' ? { text: o.text || o.option || o, isCorrect: (o.text || o.option || o) == ca } : { text: o, isCorrect: (o == ca) }));
+            }
+          }
+        }
+
+        if (optionsArr) {
+          const formattedOptions = optionsArr.map(o => ({ text: o.text || o.option || o, isCorrect: !!o.isCorrect, explanation: o.explanation || null }));
+          await createMCQQuestion(examId, { points: points, body_text: body_text, difficulty: difficulty, options: JSON.stringify(formattedOptions) }, null);
+        } else {
+          // Insert as a generic question (type_id default to 2 if not provided)
+          const type_id = q.type_id || 2;
+          const insertQ = `
+            INSERT INTO Questions (exam_id, type_id, points, body_text, difficulty, created_at)
+            VALUES (${examId}, ${type_id}, ${points}, N'${body_text}', ${difficulty ? `N'${difficulty}'` : 'NULL'}, GETDATE())
+          `;
+          await executeQuery(insertQ);
+        }
+      }
+  
+    res.status(201).json({ message: 'Exam imported successfully', examId });
+  } catch (error) {
+    console.error('Excel import error:', error);
+    res.status(500).json({ message: 'Error importing exam', error: error.message });
+  } finally {
+    // Clean up uploaded file to avoid filling disk
+    try {
+      if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+    } catch (cleanupErr) {
+      console.error('Failed to delete uploaded file:', cleanupErr);
+    }
+  }
+});
+
+// Download exam import template (protected)
+router.get('/exams/template/download', checkAuthenticated, authenticateRole(['teacher']), (req, res) => {
+  try {
+    const templatePath = path.join(__dirname, '../../../app/public/exam_import_template.xlsx');
+    if (fs.existsSync(templatePath)) {
+      return res.download(templatePath, 'exam_import_template.xlsx');
+    }
+    return res.status(404).json({ message: 'Template file not found on server. Run the generator to create it.' });
+  } catch (error) {
+    console.error('Template download error:', error);
+    return res.status(500).json({ message: 'Error downloading template' });
   }
 });
 

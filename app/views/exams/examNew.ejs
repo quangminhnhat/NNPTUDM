@@ -127,6 +127,29 @@
     </form>
 </div>
 
+<!-- Import from Excel section -->
+<div class="modern-container" style="margin-top:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <div class="modern-title">
+            <i class="fas fa-file-excel"></i>
+            Import Exam from Excel
+        </div>
+    </div>
+
+    <form id="importForm" enctype="multipart/form-data">
+        <div class="modern-form-group">
+            <label for="excelFile">Excel file (.xlsx / .xls)</label>
+            <input type="file" accept=".xlsx,.xls" class="modern-form-control" id="excelFile" name="file" required>
+        </div>
+
+        <div style="display:flex; gap:1rem; margin-top:1.25rem; justify-content:flex-end;">
+            <button type="button" id="downloadTemplateBtn" class="modern-btn-secondary"><i class="fas fa-download"></i> Download Template</button>
+            <button type="submit" class="modern-btn-primary"><i class="fas fa-upload"></i> Import Exam</button>
+        </div>
+    </form>
+    <div style="margin-top:8px; color:#6b7280; font-size:0.95rem;">Expected sheets: an <strong>Exam</strong> sheet (optional) with headers <em>exam_title,description,duration_minutes,total_marks,passing_marks</em> and a <strong>Questions</strong> sheet with headers <em>question_text,type_id,points,difficulty,options,correct_answer</em>. Options may be JSON or delimited by <code>||</code> or <code>|</code>.</div>
+</div>
+
 <script>
 document.getElementById('examForm').addEventListener('submit', function(e) {
     e.preventDefault();
@@ -158,6 +181,65 @@ document.getElementById('examForm').addEventListener('submit', function(e) {
     .catch(error => {
         console.error('Error:', error);
         alert('Error creating exam');
+    });
+});
+
+// Handle Excel import
+document.getElementById('importForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const fileInput = document.getElementById('excelFile');
+    if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Please select an Excel file to upload');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    fetch('/api/exams/import', {
+        method: 'POST',
+        headers: AuthJWT.getAuthHeader(),
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data && data.examId) {
+            window.location.href = `/exams/${data.examId}/edit`;
+        } else {
+            alert(data.message || 'Import failed');
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Import failed');
+    });
+});
+
+// Download template handler (uses AuthJWT.getAuthHeader() for protected endpoint)
+document.getElementById('downloadTemplateBtn').addEventListener('click', function (e) {
+    e.preventDefault();
+    fetch('/api/exams/template/download', {
+        method: 'GET',
+        headers: AuthJWT.getAuthHeader()
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('Network response was not ok');
+        return res.blob();
+    })
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'exam_import_template.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    })
+    .catch(err => {
+        console.error('Template download error', err);
+        alert('Failed to download template. Ensure you are logged in and the template exists on the server.');
     });
 });
 </script>
