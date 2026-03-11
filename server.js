@@ -31,37 +31,11 @@ const {
 } = require("./app/middleware/auth");
 const validateSchedule = require("./app/middleware/validateSchedule");
 
+// Controllers
+var controller = require(__dirname + "/app/controller/index");
+
 // Static files
 app.use(express.static(path.join(__dirname, "app/public")));
-
-//Controller
-const materialController = require("./app/controller/materialController");
-const notificationController = require("./app/controller/notificationsController");
-const materialsController = require("./app/controller/materialsroute");
-const userController = require("./app/controller/usersController");
-const courseController = require("./app/controller/coursesController");
-const uploadmaterialController = require("./app/controller/upload-materialController");
-const scheduleController = require("./app/controller/scheduleController");
-const classesController = require("./app/controller/classesController");
-const enrollmentsController = require("./app/controller/enrollmentsController");
-const miscController = require("./app/controller/MiscRoute");
-const requestRoute = require("./app/controller/requestRoute");
-const examController = require("./app/controller/examController");
-
-// API Controller (JSON responses)
-const apiClassesController = require("./app/controller/api/apiclassesController");
-const apiCoursesController = require("./app/controller/api/apicoursesController");
-const apiEnrollmentsController = require("./app/controller/api/apienrollmentsController");
-const apiExamController = require("./app/controller/api/apiexamController");
-const apiMaterialController = require("./app/controller/api/apimaterialController");
-const apiMaterialsController = require("./app/controller/api/apimaterialsroute");
-const apiMiscController = require("./app/controller/api/apiMiscRoute");
-const apiNotificationController = require("./app/controller/api/apinotificationsController");
-const apiRequestController = require("./app/controller/api/apirequestRoute");
-const apiScheduleController = require("./app/controller/api/apischeduleController");
-const apiUploadMaterialController = require("./app/controller/api/apiupload-materialController");
-const apiUsersController = require("./app/controller/api/apiusersController");
-
 
 // Essential middleware
 app.use(express.json());
@@ -187,41 +161,12 @@ app.use((req, res, next) => {
 
 // Serve uploaded files statically
 
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
-//routing
-app.use(materialController);
-app.use(notificationController);
-app.use(materialsController);
-app.use(userController);
-app.use(courseController);
-app.use(uploadmaterialController);
-app.use(scheduleController);
-app.use(classesController);
-app.use(enrollmentsController);
-app.use(miscController);
-app.use(requestRoute);
-app.use(examController);
-
 // Swagger UI - MOVED TO /api-docs to avoid conflict with /api Controller
 app.use('/api-docs', swaggerUi.serve);
 app.get('/api-docs', swaggerUi.setup(swaggerSpec));
 
-//api routing
-app.use("/api", apiClassesController);
-app.use("/api", apiCoursesController);
-app.use("/api", apiEnrollmentsController);  
-app.use("/api", apiExamController);
-app.use("/api", apiMaterialController);
-app.use("/api", apiMaterialsController);
-app.use("/api", apiMiscController);
-app.use("/api", apiNotificationController);
-app.use("/api", apiRequestController);
-app.use("/api", apiScheduleController);
-app.use("/api", apiUploadMaterialController);
-app.use("/api", apiUsersController);
-
-
+// Use controller routes
+app.use(controller);
 
 // Test route
 app.get('/test', (req, res) => {
@@ -361,7 +306,6 @@ app.delete("/logout", (req, res) => {
     res.redirect("/login");
   });
 });
-
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "app/views"));
