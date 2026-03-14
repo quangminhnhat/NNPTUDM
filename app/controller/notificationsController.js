@@ -11,37 +11,7 @@ const {
 
 const router = express.Router();
 
-router.post(
-  "/notifications",
-  checkAuthenticated,
-  authenticateRole(["admin", "teacher"]),
-  async (req, res) => {
-    try {
-      const { userId, message } = req.body;
-      const senderId = req.user.id;
-  
-      if (!userId || !message) {
-        req.flash("error", "User and message are required.");
-        return res.redirect("/notifications");
-      }
-  
-      const insertQuery = `
-        INSERT INTO notifications (user_id, message, sender_id)
-        VALUES (?, ?, ?);
-      `;
-  
-      await executeQuery(insertQuery, [userId, message, senderId]);
-  
-      console.log("Notification sent to user ID:", userId);
-      req.flash("success", "Notification sent successfully.");
-      res.redirect("/notifications");
-    } catch (error) {
-      console.error("Insert notification error:", error);
-      req.flash("error", "Failed to send notification.");
-      res.redirect("/notifications");
-    }
-  }
-);
+// Admin and teacher routes moved to admin-teacher/adminTeacherNotificationsController.js
 
 
 router.get("/notifications", checkAuthenticated, async (req, res) => {

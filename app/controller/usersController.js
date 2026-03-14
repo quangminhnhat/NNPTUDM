@@ -5,15 +5,6 @@ const router = express.Router();
 
 // Render-only routes: all CRUD logic moved to /api/usersRoutes.js
 
-router.get(
-  "/users",
-  checkAuthenticated,
-  authenticateRole("admin"),
-  (req, res) => {
-    res.render("userList", { user: req.user });
-  }
-);
-
 router.get("/users/:id/edit", checkAuthenticated, (req, res) => {
   res.render("user/editUser", { user: req.user });
 });
