@@ -1,4 +1,4 @@
-const executeQuery = require("./executeQuery");
+const executeQuery = require("./executeQueryservice");
 
 function mapDifficulty(d) {
     if (d === undefined || d === null || d === '') return null;

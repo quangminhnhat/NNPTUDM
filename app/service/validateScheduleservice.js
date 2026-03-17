@@ -1,4 +1,4 @@
-const executeQuery = require("./executeQuery");
+const executeQuery = require("./executeQueryservice");
 
 const validateSchedule = async (req, res, next) => {
   try {

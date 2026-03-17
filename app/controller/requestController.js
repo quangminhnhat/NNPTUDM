@@ -1,7 +1,7 @@
 //lib import
 const express = require("express");
-const { authenticateRole } = require("../service/roleAuth");
-const { checkAuthenticated } = require("../service/auth");
+const { authenticateRole } = require("../service/roleAuthservice");
+const { checkAuthenticated } = require("../service/authservice");
 
 const router = express.Router();
 

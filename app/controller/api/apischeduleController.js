@@ -1,13 +1,13 @@
 const express = require("express");
 const sql = require("msnodesqlv8");
-const { authenticateRole } = require("../../service/roleAuth");
+const { authenticateRole } = require("../../service/roleAuthservice");
 const connectionString = process.env.CONNECTION_STRING; 
-const executeQuery = require("../../service/executeQuery");
+const executeQuery = require("../../service/executeQueryservice");
 const {
   checkAuthenticated,
-} = require("../../service/auth");
+} = require("../../service/authservice");
 const router = express.Router();
-const validateSchedule = require("../../service/validateSchedule");
+const validateSchedule = require("../../service/validateScheduleservice");
 
 // Helper: check if a column exists in a table (SQL Server)
 async function columnExists(tableName, columnName) {

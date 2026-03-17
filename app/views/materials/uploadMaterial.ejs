@@ -13,7 +13,7 @@
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
     
-    <script src="/js/auth-jwt.js"></script>
+    <script src="/js/authservice-jwt.js"></script>
    <style>
         .modern-container {
             max-width: 1200px;
@@ -213,7 +213,7 @@
     <script>
     async function loadCourses() {
       try {
-        const response = await fetch('/api/upload');
+        const response = await fetch('/api/uploadservice');
         if (!response.ok) throw new Error('Failed to load courses');
         const data = await response.json();
         

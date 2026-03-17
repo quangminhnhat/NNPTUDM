@@ -1,12 +1,12 @@
 const express = require("express");
 const path = require("path");
 const sql = require("msnodesqlv8");
-const { authenticateRole } = require("../../service/roleAuth");
+const { authenticateRole } = require("../../service/roleAuthservice");
 const fs = require("fs");
 const connectionString = process.env.CONNECTION_STRING;
-const courseImageUpload = require("../../service/courseImageUpload");
-const executeQuery = require("../../service/executeQuery");
-const { checkAuthenticated } = require("../../service/auth");
+const courseImageUpload = require("../../service/courseImageUploadservice");
+const executeQuery = require("../../service/executeQueryservice");
+const { checkAuthenticated } = require("../../service/authservice");
 const router = express.Router();
 
 /**

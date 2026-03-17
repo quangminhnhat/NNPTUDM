@@ -8,18 +8,18 @@ const passport = require("passport");
 const flash = require("express-flash");
 const session = require("express-session");
 const methodOverride = require("method-override");
-const { authenticateRole } = require("../../service/roleAuth");
+const { authenticateRole } = require("../../service/roleAuthservice");
 const multer = require("multer");
 const fs = require("fs");
 const connectionString = process.env.CONNECTION_STRING;
-const upload = require("../../service/upload");
-const courseImageUpload = require("../../service/courseImageUpload");
-const executeQuery = require("../../service/executeQuery");
+const upload = require("../../service/uploadservice");
+const courseImageUpload = require("../../service/courseImageUploadservice");
+const executeQuery = require("../../service/executeQueryservice");
 const {
   checkAuthenticated,
   checkNotAuthenticated,
-} = require("../../service/auth");
-const validateSchedule = require("../../service/validateSchedule");
+} = require("../../service/authservice");
+const validateSchedule = require("../../service/validateScheduleservice");
 
 const router = express.Router();
 
