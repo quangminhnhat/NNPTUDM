@@ -1,6 +1,6 @@
 const express = require("express");
-const { authenticateRole } = require("../../../middleware/roleAuth");
-const { checkAuthenticated } = require("../../../middleware/auth");
+const { authenticateRole } = require("../../service/roleAuth");
+const { checkAuthenticated } = require("../../service/auth");
 const router = express.Router();
 
 // Admin-only routes for schedule

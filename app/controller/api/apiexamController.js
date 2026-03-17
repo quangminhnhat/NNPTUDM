@@ -7,13 +7,13 @@ const sql = require("msnodesqlv8");
 const multer = require("multer");
 const fs = require("fs");
 const xlsx = require('xlsx');
-const { authenticateRole } = require("../../middleware/roleAuth");
-const executeQuery = require("../../middleware/executeQuery");
-const { createMCQQuestion, editMCQQuestion, deleteMCQQuestion } = require("../../middleware/mcqQuestionHelper");
+const { authenticateRole } = require("../../service/roleAuth");
+const executeQuery = require("../../service/executeQuery");
+const { createMCQQuestion, editMCQQuestion, deleteMCQQuestion } = require("../../service/mcqQuestionHelper");
 const {
   checkAuthenticated,
   checkNotAuthenticated,
-} = require("../../middleware/auth");
+} = require("../../service/auth");
 
 // Configure multer for question media uploads
 const storage = multer.diskStorage({

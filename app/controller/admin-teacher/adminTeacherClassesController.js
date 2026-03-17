@@ -1,11 +1,11 @@
 const express = require("express");
 const sql = require("msnodesqlv8");
-const { authenticateRole } = require("../../middleware/roleAuth");
+const { authenticateRole } = require("../../service/roleAuth");
 const connectionString = process.env.CONNECTION_STRING;
-const executeQuery = require("../../middleware/executeQuery");
+const executeQuery = require("../../service/executeQuery");
 const {
   checkAuthenticated,
-} = require("../../middleware/auth");
+} = require("../../service/auth");
 const router = express.Router();
 
 

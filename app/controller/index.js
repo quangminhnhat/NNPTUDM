@@ -2,14 +2,14 @@ var express = require("express");
 var router = express.Router();
 
 // Admin-Teacher Controllers
-router.use(require(__dirname + "/admin-teacher/admin-only/adminOnlyApiCoursesController"));
-router.use(require(__dirname + "/admin-teacher/admin-only/adminOnlyApiUsersController"));
-router.use(require(__dirname + "/admin-teacher/admin-only/adminOnlyCoursesController"));
-router.use(require(__dirname + "/admin-teacher/admin-only/adminOnlyEnrollmentsController"));
-router.use(require(__dirname + "/admin-teacher/admin-only/adminOnlyMiscController"));
-router.use(require(__dirname + "/admin-teacher/admin-only/adminOnlyScheduleController"));
-router.use(require(__dirname + "/admin-teacher/admin-only/adminOnlyUsersController"));
-router.use(require(__dirname + "/admin-teacher/teacher-only/teacherOnlyExamController"));
+router.use(require(__dirname + "/admin/adminOnlyApiCoursesController"));
+router.use(require(__dirname + "/admin/adminOnlyApiUsersController"));
+router.use(require(__dirname + "/admin/adminOnlyCoursesController"));
+router.use(require(__dirname + "/admin/adminOnlyEnrollmentsController"));
+router.use(require(__dirname + "/admin/adminOnlyMiscController"));
+router.use(require(__dirname + "/admin/adminOnlyScheduleController"));
+router.use(require(__dirname + "/admin/adminOnlyUsersController"));
+router.use(require(__dirname + "/teacher/teacherOnlyExamController"));
 router.use(require(__dirname + "/admin-teacher/adminTeacherClassesController"));
 router.use(require(__dirname + "/admin-teacher/adminTeacherCoursesController"));
 router.use(require(__dirname + "/admin-teacher/adminTeacherMaterialController"));

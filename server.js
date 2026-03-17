@@ -16,20 +16,20 @@ const session = require("express-session");
 const methodOverride = require("method-override");
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
-const { authenticateRole } = require("./app/middleware/roleAuth");
+const { authenticateRole } = require("./app/service/roleAuth");
 const multer = require("multer");
 const fs = require("fs");
 const os = require("os");
 const https = require("https");
 const connectionString = process.env.CONNECTION_STRING;
-const upload = require("./app/middleware/upload");
-const courseImageUpload = require("./app/middleware/courseImageUpload");
-const executeQuery = require("./app/middleware/executeQuery");
+const upload = require("./app/service/upload");
+const courseImageUpload = require("./app/service/courseImageUpload");
+const executeQuery = require("./app/service/executeQuery");
 const {
   checkAuthenticated,
   checkNotAuthenticated,
-} = require("./app/middleware/auth");
-const validateSchedule = require("./app/middleware/validateSchedule");
+} = require("./app/service/auth");
+const validateSchedule = require("./app/service/validateSchedule");
 
 // Controllers
 var controller = require(__dirname + "/app/controller/index");
@@ -58,7 +58,7 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-const initalizePassport = require("./app/middleware/pass-config");
+const initalizePassport = require("./app/service/pass-config");
 initalizePassport(
   passport,
   (email) => {
