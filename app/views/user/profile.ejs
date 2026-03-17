@@ -13,7 +13,7 @@
     <link rel="stylesheet"
         href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
     
-    <script src="/js/authservice-jwt.js"></script>
+    <script src="/js/auth-jwt.js"></script>
    <style>
         .modern-container {
             max-width: 1200px;
@@ -169,6 +169,10 @@
                         <span class="modern-info-label">Phone</span>
                         <span class="modern-info-value" id="phoneValue">-</span>
                     </div>
+                    <div class="modern-info-item">
+                        <span class="modern-info-label">Birthday</span>
+                        <span class="modern-info-value" id="birthdayValue">-</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -242,6 +246,18 @@
     </footer>
     <script src="/js/main.js"></script>
     <script>
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            // If already in dd/mm/yyyy form, return as-is
+            if (typeof dateString === 'string' && dateString.includes('/')) return dateString;
+            const date = new Date(dateString);
+            if (isNaN(date)) return '-';
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
         async function loadProfile() {
             try {
                 const response = await AuthJWT.apiCall('/api/profile', { method: 'GET' });
@@ -258,12 +274,13 @@
                 document.getElementById('profilePic').src = profilePic;
                 
                 document.getElementById('roleValue').textContent = user.role;
-                document.getElementById('memberSinceValue').textContent = new Date(user.created_at).toLocaleDateString();
-                document.getElementById('lastUpdatedValue').textContent = new Date(user.updated_at).toLocaleDateString();
+                document.getElementById('memberSinceValue').textContent = formatDate(details.created_at);
+                document.getElementById('lastUpdatedValue').textContent = formatDate(details.updated_at);
                 
                 document.getElementById('fullNameValue').textContent = details.full_name || '-';
                 document.getElementById('emailValue').textContent = details.email || '-';
                 document.getElementById('phoneValue').textContent = details.phone_number || '-';
+                document.getElementById('birthdayValue').textContent = details.date_of_birth ? formatDate(details.date_of_birth) : '-';
             } catch (error) {
                 console.error('Error loading profile:', error);
                 document.getElementById('welcomeTitle').textContent = 'Error loading profile';

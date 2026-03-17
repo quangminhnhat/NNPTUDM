@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
   <link rel="stylesheet"
     href="https://demos.creative-tim.com/notus-js/assets/vendor/@fortawesome/fontawesome-free/css/all.min.css">
-  <script src="/js/authservice-jwt.js"></script>
+  <script src="/js/auth-jwt.js"></script>
   </head>
 
 <body>
@@ -420,7 +420,7 @@
   <script>
     async function loadFeaturedCourses() {
       try {
-        const response = await AuthJWT.apiCall('/api/', { method: 'GET' });
+        const response = await fetch('/api/');
         if (!response.ok) throw new Error('Failed to load courses');
         const data = await response.json();
         const courses = data.courses || [];

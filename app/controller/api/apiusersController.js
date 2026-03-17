@@ -313,7 +313,10 @@ router.get("/profile", checkAuthenticated, async (req, res) => {
     const userId = req.user.id;
 
     const query = `
-      SELECT id, username, role, full_name, email, phone_number, address, profile_pic, CONVERT(varchar(10), date_of_birth, 23) as date_of_birth, created_at, updated_at
+      SELECT id, username, role, full_name, email, phone_number, address, profile_pic,
+        CONVERT(varchar(10), date_of_birth, 103) as date_of_birth,
+        CONVERT(varchar(10), created_at, 103) as created_at,
+        CONVERT(varchar(10), updated_at, 103) as updated_at
       FROM users
       WHERE id = ?
     `;

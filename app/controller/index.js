@@ -2,8 +2,8 @@ var express = require("express");
 var router = express.Router();
 
 // Admin-Teacher Controllers
-router.use(require(__dirname + "/admin/adminOnlyApiCoursesController"));
-router.use(require(__dirname + "/admin/adminOnlyApiUsersController"));
+router.use("/api", require(__dirname + "/admin/adminOnlyApiCoursesController"));
+router.use("/api", require(__dirname + "/admin/adminOnlyApiUsersController"));
 router.use(require(__dirname + "/admin/adminOnlyCoursesController"));
 router.use(require(__dirname + "/admin/adminOnlyEnrollmentsController"));
 router.use(require(__dirname + "/admin/adminOnlyMiscController"));

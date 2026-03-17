@@ -11,7 +11,7 @@
     <link href="https://use.fontawesome.com/releases/v5.3.1/css/all.css" rel="stylesheet">
     <!-- Mobile Responsive CSS -->
     <link rel="stylesheet" href="/css/mobile.css">
-    <script src="/js/authservice-jwt.js"></script>
+    <script src="/js/auth-jwt.js"></script>
     <!--Custom styles-->
     <style>
         html,
@@ -329,18 +329,26 @@
             
             document.getElementById('registerForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
+
+                const formData = new FormData(this);
+                const body = {};
+                formData.forEach((value, key) => {
+                    body[key] = value;
+                });
+
                 try {
-                    const formData = new FormData(this);
                     const response = await fetch('/api/register', {
                         method: 'POST',
-                        body: formData
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(body),
                     });
-                    
+
                     const data = await response.json();
-                    
+
                     if (response.ok) {
-                        alert('Registration successful! Redirecting to login...');
-                        window.location.href = '/login';
+                        alert('Registration successful!');
                     } else {
                         alert(data.error || 'Registration failed. Please try again.');
                     }

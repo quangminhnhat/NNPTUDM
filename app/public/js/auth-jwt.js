@@ -56,20 +56,27 @@ const AuthJWT = {
    */
   async apiCall(url, options = {}) {
     const token = this.getToken();
-    
-    if (!token) {
-      throw new Error('No authentication token found');
+
+    // Copy headers without modifying the original options
+    const headers = {
+      ...options.headers,
+    };
+
+    // Add JSON content-type only when it is not set and the body is not a FormData.
+    const bodyIsFormData = options.body instanceof FormData;
+    if (!headers['Content-Type'] && !bodyIsFormData) {
+      headers['Content-Type'] = 'application/json';
     }
 
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-      'Authorization': `Bearer ${token}`
-    };
+    // Only send Authorization header when we have a token.
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
 
     const response = await fetch(url, {
       ...options,
-      headers
+      headers,
+      credentials: 'include',
     });
 
     // If 401 Unauthorized, clear auth and redirect to login
