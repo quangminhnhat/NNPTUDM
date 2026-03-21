@@ -5,6 +5,7 @@ const { authenticateRole } = require("../../service/roleAuthservice");
 const fs = require("fs");
 const connectionString = process.env.CONNECTION_STRING;
 const executeQuery = require("../../service/executeQueryservice");
+const notificationsService = require("../../service/notificationsService");
 const {
   checkAuthenticated,
 } = require("../../service/authservice");
@@ -25,19 +26,14 @@ router.post(
         return res.redirect("/notifications");
       }
 
-      const insertQuery = `
-        INSERT INTO notifications (user_id, message, sender_id)
-        VALUES (?, ?, ?);
-      `;
-
-      await executeQuery(insertQuery, [userId, message, senderId]);
+      await notificationsService.sendNotification(userId, message, senderId);
 
       console.log("Notification sent to user ID:", userId);
       req.flash("success", "Notification sent successfully.");
       res.redirect("/notifications");
     } catch (error) {
       console.error("Insert notification error:", error);
-      req.flash("error", "Failed to send notification.");
+      req.flash("error", error.message || "Failed to send notification.");
       res.redirect("/notifications");
     }
   }

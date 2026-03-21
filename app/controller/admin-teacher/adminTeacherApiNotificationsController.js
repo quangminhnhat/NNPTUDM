@@ -3,8 +3,9 @@ const app = express();
 const sql = require("msnodesqlv8");
 const { authenticateRole } = require("../../service/roleAuthservice");
 const fs = require("fs");
-const connectionString = process.env.CONNECTION_STRING; 
+const connectionString = process.env.CONNECTION_STRING;
 const executeQuery = require("../../service/executeQueryservice");
+const notificationsService = require("../../service/notificationsService");
 const {
   checkAuthenticated,
 } = require("../../service/authservice");
@@ -49,23 +50,12 @@ router.post(
     try {
       const { userId, message } = req.body;
       const senderId = req.user.id;
-  
-      if (!userId || !message) {
-        return res.status(400).json({ error: "User and message are required." });
-      }
-  
-      const insertQuery = `
-        INSERT INTO notifications (user_id, message, sender_id)
-        VALUES (?, ?, ?);
-      `;
-  
-      await executeQuery(insertQuery, [userId, message, senderId]);
-  
-      console.log("Notification sent to user ID:", userId);
-      res.json({ success: true, message: "Notification sent successfully." });
+
+      const result = await notificationsService.sendNotification(userId, message, senderId);
+      res.json(result);
     } catch (error) {
       console.error("Insert notification error:", error);
-      res.status(500).json({ error: "Failed to send notification." });
+      res.status(error.status || 500).json({ error: error.message || "Failed to send notification" });
     }
   }
 );

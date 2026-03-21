@@ -3,9 +3,10 @@ const path = require("path");
 const sql = require("msnodesqlv8");
 const { authenticateRole } = require("../../service/roleAuthservice");
 const fs = require("fs");
-const connectionString = process.env.CONNECTION_STRING; 
+const connectionString = process.env.CONNECTION_STRING;
 const upload = require("../../service/uploadservice");
 const executeQuery = require("../../service/executeQueryservice");
+const materialsService = require("../../service/materialsService");
 const {
   checkAuthenticated,
 } = require("../../service/authservice");
@@ -40,17 +41,11 @@ router.get(
   checkAuthenticated,
   async (req, res) => {
     try {
-      const query = `
-        SELECT m.*, c.course_name 
-        FROM materials m
-        JOIN courses c ON m.course_id = c.id
-        ORDER BY m.uploaded_at DESC
-      `;
-      const materials = await executeQuery(query);
+      const materials = await materialsService.getAllMaterials();
       res.json(materials);
     } catch (error) {
       console.error("Fetch materials error:", error);
-      res.status(500).json({ error: "Database error" });
+      res.status(error.status || 500).json({ error: error.message || "Database error" });
     }
   }
 );

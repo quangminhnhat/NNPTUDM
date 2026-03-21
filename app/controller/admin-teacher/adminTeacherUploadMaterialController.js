@@ -2,90 +2,30 @@ const express = require("express");
 const path = require("path");
 const sql = require("msnodesqlv8");
 const { authenticateRole } = require("../../service/roleAuthservice");
-const connectionString = process.env.CONNECTION_STRING; 
+const connectionString = process.env.CONNECTION_STRING;
 const upload = require("../../service/uploadservice");
 const courseImageUpload = require("../../service/courseImageUploadservice");
 const {
   checkAuthenticated,
 } = require("../../service/authservice");
+const adminTeacherUploadMaterialService = require("../../service/adminTeacherUploadMaterialService");
 const router = express.Router();
 
-
-
-
-
 router.post(
   "/upload-material",
   checkAuthenticated,
   authenticateRole(["admin", "teacher"]),
   upload.single("material"),
-  (req, res) => {
-    const { course_id } = req.body;
-    const file = req.file;
-
-    if (!course_id || !file) {
-      return res.status(400).send("Missing course_id or file.");
+  async (req, res) => {
+    try {
+      const { course_id } = req.body;
+      const result = await adminTeacherUploadMaterialService.uploadMaterial(course_id, req.file, connectionString);
+      res.send(result.message);
+    } catch (error) {
+      console.error("Upload material error:", error);
+      res.status(error.statusCode || 500).send(error.message);
     }
-
-    const insertQuery = `
-    INSERT INTO materials (course_id, file_name, file_path, uploaded_at)
-    VALUES (?, ?, ?, GETDATE())
-  `;
-
-    const values = [
-      course_id,
-      file.originalname,
-      path.join("uploads", file.filename),
-      file.mimetype,
-    ];
-
-    sql.query(connectionString, insertQuery, values, (err) => {
-      if (err) {
-        console.error("Insert material error:", err);
-        return res.status(500).send("Database insert error");
-      }
-      console.log("Material uploaded successfully.");
-      res.send("File uploaded and saved to database.");
-    });
   }
 );
-
-
-router.post(
-  "/upload-material",
-  checkAuthenticated,
-  authenticateRole(["admin", "teacher"]),
-  upload.single("material"),
-  (req, res) => {
-    const { course_id } = req.body;
-    const file = req.file;
-
-    if (!course_id || !file) {
-      return res.status(400).send("Missing course_id or file.");
-    }
-
-    const insertQuery = `
-    INSERT INTO materials (course_id, file_name, file_path, uploaded_at)
-    VALUES (?, ?, ?, GETDATE())
-  `;
-
-    const values = [
-      course_id,
-      file.originalname,
-      path.join("uploads", file.filename),
-      file.mimetype,
-    ];
-
-    sql.query(connectionString, insertQuery, values, (err) => {
-      if (err) {
-        console.error("Insert material error:", err);
-        return res.status(500).send("Database insert error");
-      }
-      console.log("Material uploaded successfully.");
-      res.send("File uploaded and saved to database.");
-    });
-  }
-);
-
 
 module.exports = router;

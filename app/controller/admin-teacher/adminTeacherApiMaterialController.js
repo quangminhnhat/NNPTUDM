@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const upload = require("../../service/uploadservice");
 const executeQuery = require("../../service/executeQueryservice");
+const materialsService = require("../../service/materialsService");
 const { authenticateRole } = require("../../service/roleAuthservice");
 
 // You may need to import your authentication middleware
@@ -58,31 +59,8 @@ router.post(
         });
       }
 
-      // Verify course exists first
-      const courseCheckQuery = "SELECT id FROM courses WHERE id = ?";
-      const courseResult = await executeQuery(courseCheckQuery, [course_id]);
-
-      if (!courseResult || courseResult.length === 0) {
-        return res.status(404).json({
-          error: "Course not found",
-          course_id,
-        });
-      }
-
-      const insertQuery = `
-        INSERT INTO materials (course_id, file_name, file_path, uploaded_at)
-        VALUES (?, ?, ?, GETDATE())
-      `;
-
-      const values = [
-        course_id,
-        file.originalname,
-        path.join("uploads", file.filename),
-      ];
-
-      await executeQuery(insertQuery, values);
-
-      res.json({ success: true, message: "Material uploaded successfully" });
+      const result = await materialsService.uploadMaterial(course_id, file);
+      res.json(result);
     } catch (error) {
       console.error("Material upload error:", error);
 
@@ -94,8 +72,8 @@ router.post(
         });
       }
 
-      res.status(500).json({
-        error: "Failed to upload material",
+      res.status(error.status || 500).json({
+        error: error.message || "Failed to upload material",
         details: error.message,
       });
     }

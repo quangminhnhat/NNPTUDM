@@ -3,8 +3,9 @@ const app = express();
 const sql = require("msnodesqlv8");
 const { authenticateRole } = require("../service/roleAuthservice");
 const fs = require("fs");
-const connectionString = process.env.CONNECTION_STRING; 
+const connectionString = process.env.CONNECTION_STRING;
 const executeQuery = require("../service/executeQueryservice");
+const notificationsService = require("../service/notificationsService");
 const {
   checkAuthenticated,
 } = require("../service/authservice");
@@ -16,10 +17,11 @@ const router = express.Router();
 
 router.get("/notifications", checkAuthenticated, async (req, res) => {
   try {
-   
+    const notifications = await notificationsService.getNotifications(req.user.id);
+
     res.render("notifications.ejs", {
       user: req.user,
-    
+      notifications: notifications
     });
   } catch (error) {
     console.error("Error fetching notifications:", error);
@@ -29,25 +31,17 @@ router.get("/notifications", checkAuthenticated, async (req, res) => {
 
 router.post("/notifications/:id/read", checkAuthenticated, async (req, res) => {
   try {
-    const query = `
-            UPDATE notifications 
-            SET [read] = 1, 
-                updated_at = GETDATE()
-            WHERE id = ? AND user_id = ?
-        `;
-    await executeQuery(query, [req.params.id, req.user.id]);
-    res.json({ success: true });
+    const result = await notificationsService.markAsRead(req.params.id, req.user.id);
+    res.json(result);
   } catch (error) {
     console.error("Error marking notification as read:", error);
-    res.status(500).json({ error: "Failed to update notification" });
+    res.status(error.status || 500).json({ error: error.message || "Failed to update notification" });
   }
 });
 
 router.delete("/notifications/:id", checkAuthenticated, async (req, res) => {
   try {
-    await executeQuery("DELETE FROM notifications WHERE id = ?", [
-      req.params.id,
-    ]);
+    await notificationsService.deleteNotification(req.params.id);
     res.redirect("/notifications");
   } catch (error) {
     console.error("Error deleting notification:", error);

@@ -7,6 +7,7 @@ const multer = require("multer");
 const connectionString = process.env.CONNECTION_STRING;
 const executeQuery = require("../../service/executeQueryservice");
 const { checkAuthenticated } = require("../../service/authservice");
+const usersService = require("../../service/usersService");
 const router = express.Router();
 const profilePicStorage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -51,22 +52,12 @@ const profilePicUpload = multer({ storage: profilePicStorage });
 router.get("/users/:id/edit", checkAuthenticated, async (req, res) => {
   try {
     const userId = req.params.id;
-    const query = `
-          SELECT u.id, u.username, u.role, u.full_name, u.email, u.phone_number, u.profile_pic, t.salary, u.address, CONVERT(varchar(10), u.date_of_birth, 23) as date_of_birth
-          FROM users u
-          LEFT JOIN teachers t ON u.id = t.user_id
-          WHERE u.id = ?
-        `;
 
-    const result = await executeQuery(query, [userId]);
-
-    if (!result.length) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    const data = await usersService.getUserForEdit(userId);
 
     res.json({
       user: req.user,
-      editUser: result[0],
+      ...data,
       messages: {
         error: req.flash("error"),
         success: req.flash("success"),
@@ -74,7 +65,7 @@ router.get("/users/:id/edit", checkAuthenticated, async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching user:", error);
-    res.status(500).json({ error: "Error loading user data" });
+    res.status(error.status || 500).json({ error: error.message || "Error loading user data" });
   }
 });
 
@@ -131,154 +122,41 @@ router.post(
   checkAuthenticated,
   profilePicUpload.single("profile_pic"),
   async (req, res) => {
-    const {
-      username,
-      role,
-      full_name,
-      email,
-      phone_number,
-      salary,
-      address,
-      date_of_birth,
-    } = req.body;
-    const userId = req.params.id;
-    let connection;
-
     try {
-      connection = await sql.promises.open(connectionString);
-      await connection.promises.beginTransaction();
-
-      const roleResult = await connection.promises.query(
-        "SELECT role, profile_pic FROM users WHERE id = ?",
-        [userId]
-      );
-      
-      if (!roleResult.first || roleResult.first.length === 0) {
-        await connection.promises.rollback();
-        return res.status(404).json({ error: "User not found." });
-      }
-      
-      const currentUserData = roleResult.first[0];
-      const oldRole = currentUserData?.role;
-
-      let newProfilePicPath = currentUserData?.profile_pic;
-      if (req.file) {
-        newProfilePicPath = req.file.path.replace(/\\/g, '/'); // Use forward slashes for consistency
-        const oldPicPath = currentUserData?.profile_pic;
-        if (oldPicPath && fs.existsSync(oldPicPath)) {
-          fs.unlink(oldPicPath, (err) => {
-            if (err) console.error("Error deleting old profile picture:", err);
-          });
-        }
-      }
-
-      let updateQueryParts = [
-        "username = ?",
-        "full_name = ?",
-        "email = ?",
-        "phone_number = ?",
-        "address = ?",
-        "date_of_birth = ?",
-        "profile_pic = ?",
-        "updated_at = GETDATE()",
-      ];
-      let queryParams = [
+      const {
         username,
-        full_name || null,
-        email || null,
-        phone_number || null,
-        address || null,
-        date_of_birth || null,
-        newProfilePicPath,
-      ];
+        role,
+        full_name,
+        email,
+        phone_number,
+        salary,
+        address,
+        date_of_birth,
+      } = req.body;
+      const userId = req.params.id;
 
-      if (role && role !== oldRole) {
-        updateQueryParts.push("role = ?");
-        queryParams.push(role);
-      }
-
-      queryParams.push(userId);
-
-      const updateUserQuery = `UPDATE users SET ${updateQueryParts.join(
-        ", "
-      )} WHERE id = ?`;
-      await connection.promises.query(updateUserQuery, queryParams);
-      
-      if (role && oldRole !== role) {
-        if (oldRole === "student") {
-          const studentDepsQuery = `
-            SELECT s.id 
-            FROM students s
-            JOIN enrollments e ON s.id = e.student_id
-            WHERE s.user_id = ?
-          `;
-          const studentDeps = await connection.promises.query(studentDepsQuery, [userId]);
-          if (studentDeps.first && studentDeps.first.length > 0) {
-            await connection.promises.rollback();
-            return res.status(400).json({ error: "Cannot change role. This student is enrolled in one or more classes. Please unenroll them first." });
-          }
-        }
-
-        await connection.promises.query(
-          "DELETE FROM students WHERE user_id = ?",
-          [userId]
-        );
-        await connection.promises.query(
-          "DELETE FROM teachers WHERE user_id = ?",
-          [userId]
-        );
-        await connection.promises.query(
-          "DELETE FROM admins WHERE user_id = ?",
-          [userId]
-        );
-
-        if (role === "student") {
-          await connection.promises.query(
-            "INSERT INTO students (user_id) VALUES (?)",
-            [userId]
-          );
-        } else if (role === "teacher") {
-          await connection.promises.query(
-            "INSERT INTO teachers (user_id, salary) VALUES (?, ?)",
-            [userId, salary || 0]
-          );
-        } else if (role === "admin") {
-          await connection.promises.query(
-            "INSERT INTO admins (user_id) VALUES (?)",
-            [userId]
-          );
-        }
-      } else {
-        if (oldRole === "teacher" && salary !== undefined) {
-          await connection.promises.query(
-            "UPDATE teachers SET salary = ? WHERE user_id = ?",
-            [salary, userId]
-          );
-        }
-      }
-
-      await connection.promises.commit();
+      const result = await usersService.updateUser(userId, {
+        username,
+        role,
+        full_name,
+        email,
+        phone_number,
+        salary,
+        address,
+        date_of_birth,
+      }, req.file);
 
       if (req.user.role !== "admin" || userId == req.user.id) {
-        return res.json({ success: true, redirect: "/profile" });
+        return res.json({ ...result, redirect: "/profile" });
       } else {
-        return res.json({ success: true, redirect: "/users" });
+        return res.json({ ...result, redirect: "/users" });
       }
     } catch (error) {
       console.error("Error updating user:", error);
-      if (req.file && fs.existsSync(req.file.path)) {
-        fs.unlink(req.file.path, (err) => {
-          if (err) console.error("Error deleting uploaded file after failed update:", err);
-        });
-      }
-      if (connection) {
-        await connection.promises.rollback();
-      }
-      res.status(500).json({ error: "An unexpected error occurred.", detail: String(error) });
-    } finally {
-      if (connection) {
-        await connection.promises.close();
-      }
+      res.status(error.status || 500).json({
+        error: error.message || "An unexpected error occurred.",
+        detail: String(error)
+      });
     }
   }
 );
@@ -312,28 +190,15 @@ router.get("/profile", checkAuthenticated, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const query = `
-      SELECT id, username, role, full_name, email, phone_number, address, profile_pic,
-        CONVERT(varchar(10), date_of_birth, 103) as date_of_birth,
-        CONVERT(varchar(10), created_at, 103) as created_at,
-        CONVERT(varchar(10), updated_at, 103) as updated_at
-      FROM users
-      WHERE id = ?
-    `;
-
-    const [details] = await executeQuery(query, [userId]);
-
-    if (!details) {
-      return res.status(404).json({ error: "Profile not found." });
-    }
+    const data = await usersService.getUserProfile(userId);
 
     res.json({
       user: req.user,
-      details: details,
+      ...data,
     });
   } catch (error) {
     console.error("Profile fetch error:", error);
-    res.status(500).json({ error: "Error fetching profile data." });
+    res.status(error.status || 500).json({ error: error.message || "Error fetching profile data." });
   }
 });
 

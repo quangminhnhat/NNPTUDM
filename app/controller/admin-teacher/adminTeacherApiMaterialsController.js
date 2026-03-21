@@ -3,9 +3,10 @@ const path = require("path");
 const sql = require("msnodesqlv8");
 const { authenticateRole } = require("../../service/roleAuthservice");
 const fs = require("fs");
-const connectionString = process.env.CONNECTION_STRING; 
+const connectionString = process.env.CONNECTION_STRING;
 const upload = require("../../service/uploadservice");
 const executeQuery = require("../../service/executeQueryservice");
+const materialsService = require("../../service/materialsService");
 const {
   checkAuthenticated,
 } = require("../../service/authservice");
@@ -54,39 +55,11 @@ router.get(
   async (req, res) => {
     try {
       const materialId = req.params.id;
-
-      // Get material details with course info
-      const query = `
-          SELECT m.*, c.course_name
-          FROM materials m
-          JOIN courses c ON m.course_id = c.id
-          WHERE m.id = ?
-        `;
-
-      // Get available courses for dropdown
-      const courseQuery = `
-          SELECT id, course_name 
-          FROM courses 
-          WHERE end_date >= GETDATE()
-          ORDER BY course_name
-        `;
-
-      const [material, courses] = await Promise.all([
-        executeQuery(query, [materialId]),
-        executeQuery(courseQuery),
-      ]);
-
-      if (!material.length) {
-        return res.status(404).json({ error: "Material not found" });
-      }
-
-      res.json({
-        material: material[0],
-        courses,
-      });
+      const data = await materialsService.getMaterialForEdit(materialId);
+      res.json(data);
     } catch (error) {
       console.error("Error loading material edit form:", error);
-      res.status(500).json({ error: "Error loading material edit form" });
+      res.status(error.status || 500).json({ error: error.message || "Error loading material edit form" });
     }
   }
 );
@@ -141,40 +114,8 @@ router.post(
       const { course_id } = req.body;
       const file = req.file;
 
-      // Get current material info
-      const currentMaterial = await executeQuery(
-        "SELECT * FROM materials WHERE id = ?",
-        [materialId]
-      );
-
-      if (!currentMaterial.length) {
-        return res.status(404).json({ error: "Material not found" });
-      }
-
-      let updateQuery = "UPDATE materials SET course_id = ?";
-      let queryParams = [course_id];
-
-      // If new file uploaded, update file info
-      if (file) {
-        // Delete old file
-        const oldFilePath = path.join(__dirname, currentMaterial[0].file_path);
-        fs.unlink(oldFilePath, (err) => {
-          if (err) console.error("Error deleting old file:", err);
-        });
-
-        // Update with new file info
-        updateQuery += ", file_name = ?, file_path = ?";
-        queryParams.push(
-          file.originalname,
-          path.join("uploads", file.filename)
-        );
-      }
-
-      updateQuery += ", updated_at = GETDATE() WHERE id = ?";
-      queryParams.push(materialId);
-
-      await executeQuery(updateQuery, queryParams);
-      res.json({ message: "Material updated successfully" });
+      const result = await materialsService.updateMaterial(materialId, course_id, file);
+      res.json(result);
     } catch (error) {
       console.error("Error updating material:", error);
 
@@ -186,7 +127,7 @@ router.post(
         });
       }
 
-      res.status(500).json({ error: "Failed to update material" });
+      res.status(error.status || 500).json({ error: error.message || "Failed to update material" });
     }
   }
 );
@@ -224,33 +165,11 @@ router.delete(
   async (req, res) => {
     const materialId = req.params.id;
     try {
-      // 1. Get the file path from the database
-      const getFilePathQuery = "SELECT file_path FROM materials WHERE id = ?";
-      const result = await executeQuery(getFilePathQuery, [materialId]);
-
-      if (!result || result.length === 0) {
-        return res.status(404).json({ error: "Material not found." });
-      }
-
-      const relativePath = result[0].file_path;
-      // Correctly construct the absolute path from the project root
-      const absolutePath = path.join(__dirname, "..", relativePath);
-
-      // 2. Delete the record from the database
-      const deleteQuery = "DELETE FROM materials WHERE id = ?";
-      await executeQuery(deleteQuery, [materialId]);
-
-      // 3. Delete the file from the disk
-      fs.unlink(absolutePath, (fsErr) => {
-        if (fsErr) {
-          // Log the error but don't block the user, as the DB record is gone.
-          console.error("File deletion error:", fsErr);
-        }
-        res.json({ message: "Material deleted successfully." });
-      });
+      const result = await materialsService.deleteMaterial(materialId);
+      res.json(result);
     } catch (error) {
       console.error("Error deleting material:", error);
-      res.status(500).json({ error: "Failed to delete material." });
+      res.status(error.status || 500).json({ error: error.message || "Failed to delete material" });
     }
   }
 );
@@ -291,11 +210,11 @@ router.get(
   checkAuthenticated,
   async (req, res) => {
     try {
-      const courses = await executeQuery("SELECT id, course_name FROM courses ORDER BY course_name");
-      res.json({ courses: courses });
+      const data = await materialsService.getCoursesForUpload();
+      res.json(data);
     } catch (error) {
       console.error("Error loading upload material page:", error);
-      res.status(500).json({ error: "Error loading page data." });
+      res.status(error.status || 500).json({ error: error.message || "Error loading page data" });
     }
   }
 );

@@ -19,17 +19,12 @@ router.use(require(__dirname + "/admin-teacher/adminTeacherUploadMaterialControl
 router.use(require(__dirname + "/admin-teacher/adminTeacherRequestController"));
 
 // Main Controllers
-router.use(require(__dirname + "/classesController"));
 router.use(require(__dirname + "/coursesController"));
-router.use(require(__dirname + "/enrollmentsController"));
 router.use(require(__dirname + "/examController"));
-router.use(require(__dirname + "/materialController"));
 router.use(require(__dirname + "/materialsController"));
 router.use(require(__dirname + "/MiscController"));
 router.use(require(__dirname + "/notificationsController"));
-router.use(require(__dirname + "/requestController"));
 router.use(require(__dirname + "/scheduleController"));
-router.use(require(__dirname + "/upload-materialController"));
 router.use(require(__dirname + "/usersController"));
 
 // API Controllers

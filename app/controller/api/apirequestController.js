@@ -15,6 +15,7 @@ const connectionString = process.env.CONNECTION_STRING;
 const upload = require("../../service/uploadservice");
 const courseImageUpload = require("../../service/courseImageUploadservice");
 const executeQuery = require("../../service/executeQueryservice");
+const requestsService = require("../../service/requestsService");
 const {
   checkAuthenticated,
   checkNotAuthenticated,
@@ -55,55 +56,22 @@ router.get(
     try {
       const userId = req.user.id;
       const userRole = req.user.role;
-      
+
       console.log('Debug: Loading requests for user:', { userId, userRole });
-      
-      let requestQuery = `
-        SELECT r.request_id, r.description, r.status, r.created_at,
-               rt.type_name, c.class_name, u.username, u.full_name, u.role,
-               r.class_id, r.user_id
-        FROM Requests r
-        JOIN RequestTypes rt ON r.type_id = rt.type_id
-        JOIN users u ON r.user_id = u.id
-        LEFT JOIN classes c ON r.class_id = c.id
-      `;
 
-      let whereClause = '';
-      let params = {};
-      
-      // Filter based on role
-      if (userRole === 'student') {
-        whereClause = ` WHERE r.user_id = CAST(@userId AS INT)`;
-        params.userId = userId;
-      } else if (userRole === 'teacher') {
-        whereClause = ` WHERE (r.user_id = CAST(@userId AS INT) OR 
-                                (u.role = 'student' AND EXISTS (
-                                  SELECT 1 FROM classes cls
-                                  JOIN teachers t ON cls.teacher_id = t.id
-                                  WHERE t.user_id = CAST(@userId AS INT)
-                                  AND cls.id = r.class_id
-                                )))`;
-        params.userId = userId;
-      }
-      // Admin sees all requests - no WHERE clause
-      
-      requestQuery += whereClause + ` ORDER BY r.created_at DESC`;
+      const requests = await requestsService.getRequests(userId, userRole);
 
-      console.log('Debug: Executing request query:', requestQuery);
-      
-      const requests = await executeQuery(requestQuery, params);
-      
       console.log('Debug: Requests fetched:', requests ? requests.length : 0);
 
       res.json({
         user: req.user,
-        requests: requests || [],
+        requests: requests,
         userRole,
         title: "Request List",
       });
     } catch (error) {
       console.error("Error fetching requests:", error);
-      res.status(500).json({
+      res.status(error.status || 500).json({
         error: 'Error loading requests',
         message: error.message
       });
@@ -141,43 +109,18 @@ router.get(
   authenticateRole(["student", "teacher"]),
   async (req, res) => {
     try {
-      // Get available request types for user role
-      const typeQuery = `
-        SELECT type_id, type_name 
-        FROM RequestTypes 
-        WHERE applicable_to = @role
-      `;
-      
-      const requestTypes = await executeQuery(typeQuery, {
-        role: req.user.role
-      });
-
-      // Get available classes for the user
-      const classQuery = req.user.role === 'student' ? 
-        `SELECT c.id, c.class_name 
-         FROM classes c
-         JOIN enrollments e ON c.id = e.class_id
-         JOIN students s ON e.student_id = s.id
-         WHERE s.user_id = @userId` :
-        `SELECT c.id, c.class_name 
-         FROM classes c
-         JOIN teachers t ON c.teacher_id = t.id
-         WHERE t.user_id = @userId`;
-
-      const classes = await executeQuery(classQuery, {
-        userId: req.user.id
-      });
+      const data = await requestsService.getNewRequestFormData(req.user.id, req.user.role);
 
       res.json({
         user: req.user,
-        requestTypes,
-        classes,
+        requestTypes: data.requestTypes,
+        classes: data.classes,
         title: "New Request",
       });
     } catch (error) {
       console.error("Error loading request form:", error);
-      res.status(500).json({
-        error: 'Error loading request form'
+      res.status(error.status || 500).json({
+        error: error.message || 'Error loading request form'
       });
     }
   }
@@ -214,55 +157,18 @@ router.get(
   async (req, res) => {
     try {
       const { requestId } = req.params;
-      const userId = req.user.id;
-
-      // Get request details
-      const requestQuery = `
-        SELECT r.*, rt.type_name, c.class_name
-        FROM Requests r
-        JOIN RequestTypes rt ON r.type_id = rt.type_id
-        LEFT JOIN classes c ON r.class_id = c.id
-        WHERE r.request_id = @requestId 
-        AND r.user_id = @userId
-      `;
-
-      const [request] = await executeQuery(requestQuery, {
-        requestId,
-        userId
-      });
-
-      if (!request) {
-        return res.status(404).json({
-          error: 'Request not found'
-        });
-      }
-
-      // Get available classes (same as new request form)
-      const classQuery = req.user.role === 'student' ? 
-        `SELECT c.id, c.class_name 
-         FROM classes c
-         JOIN enrollments e ON c.id = e.class_id
-         JOIN students s ON e.student_id = s.id
-         WHERE s.user_id = @userId` :
-        `SELECT c.id, c.class_name 
-         FROM classes c
-         JOIN teachers t ON c.teacher_id = t.id
-         WHERE t.user_id = @userId`;
-
-      const classes = await executeQuery(classQuery, {
-        userId
-      });
+      const data = await requestsService.getEditRequestFormData(requestId, req.user.id, req.user.role);
 
       res.json({
         user: req.user,
-        request,
-        classes,
+        request: data.request,
+        classes: data.classes,
         title: "Edit Request",
       });
     } catch (error) {
       console.error("Error loading edit form:", error);
-      res.status(500).json({
-        error: 'Error loading edit form'
+      res.status(error.status || 500).json({
+        error: error.message || 'Error loading edit form'
       });
     }
   }
@@ -308,67 +214,19 @@ router.post(
   checkAuthenticated,
   authenticateRole(["student", "teacher"]),
   async (req, res) => {
-    const { requestType, details, classId } = req.body;
-    const userId = req.user.id; // Use authenticated user ID instead of body
-    const senderRole = req.user.role;
-
     try {
-      // Get request type ID from RequestTypes table
-      const typeQuery = `SELECT type_id FROM RequestTypes WHERE type_name = ? AND applicable_to = ?`;
-      const typeResult = await executeQuery(typeQuery, [
-        requestType,
-        senderRole
-      ]);
+      const { requestType, details, classId } = req.body;
+      const userId = req.user.id;
+      const senderRole = req.user.role;
 
-      if (!typeResult || typeResult.length === 0) {
-        return res.status(400).json({ error: "Invalid request type for your role" });
-      }
-
-      const typeId = typeResult[0].type_id;
-
-      // Insert the request
-      const insertQuery = `
-        INSERT INTO Requests (user_id, type_id, class_id, description, status, created_at, updated_at)
-        VALUES (@userId, @typeId, @classId, @details, 'pending', GETDATE(), GETDATE())
-      `;
-
-      await executeQuery(insertQuery, {
-        userId: userId,
-        typeId: typeId,
-        classId: classId || null,
-        details: details
-      });
-
-      // If it's a class-related request, notify relevant users
-      if (classId) {
-        const notifyQuery = `
-          INSERT INTO notifications (user_id, message, sender_id, sent_at, created_at, updated_at)
-          SELECT 
-            CASE 
-              WHEN u.role = 'teacher' THEN (SELECT TOP 1 user_id FROM admins)
-              ELSE (SELECT TOP 1 t.user_id FROM teachers t 
-                    INNER JOIN classes c ON t.id = c.teacher_id 
-                    WHERE c.id = @classId)
-            END,
-            @message,
-            @senderId,
-            GETDATE(), GETDATE(), GETDATE()
-          FROM users u WHERE u.id = @userId
-        `;
-
-        await executeQuery(notifyQuery, {
-          classId: classId,
-          message: `New ${requestType} request from ${req.user.username}`,
-          senderId: userId,
-          userId: userId
-        });
-      }
+      await requestsService.createRequest(requestType, details, classId, userId, senderRole, req.user.username);
 
       res.status(200).json({ message: "Request submitted successfully" });
-
     } catch (error) {
       console.error("Error submitting request:", error);
-      res.status(500).json({ error: "Failed to submit request" });
+      res.status(error.status || 500).json({
+        error: error.message || "Failed to submit request"
+      });
     }
   }
 );
@@ -403,57 +261,19 @@ router.delete(
   checkAuthenticated,
   authenticateRole(["student", "teacher", "admin"]),
   async (req, res) => {
-    const requestId = req.params.requestId;
-    const userId = req.user.id;
-
     try {
-      // First check if request exists and belongs to user
-      const checkQuery = `
-        SELECT status 
-        FROM Requests 
-        WHERE request_id = @requestId 
-        AND user_id = @userId
-      `;
+      const requestId = req.params.requestId;
+      const userId = req.user.id;
 
-      const request = await executeQuery(checkQuery, {
-        requestId: requestId,
-        userId: userId
+      await requestsService.deleteRequest(requestId, userId);
+
+      res.status(200).json({
+        message: "Request deleted successfully"
       });
-
-      if (!request || request.length === 0) {
-        return res.status(404).json({ 
-          error: "Request not found or you don't have permission to delete it" 
-        });
-      }
-
-      // Only allow deletion of pending requests
-      if (request[0].status !== 'pending') {
-        return res.status(400).json({
-          error: "Only pending requests can be deleted"
-        });
-      }
-
-      // Delete the request
-      const deleteQuery = `
-        DELETE FROM Requests 
-        WHERE request_id = @requestId 
-        AND user_id = @userId 
-        AND status = 'pending'
-      `;
-
-      await executeQuery(deleteQuery, {
-        requestId: requestId,
-        userId: userId
-      });
-
-      res.status(200).json({ 
-        message: "Request deleted successfully" 
-      });
-
     } catch (error) {
       console.error("Error deleting request:", error);
-      res.status(500).json({ 
-        error: "Failed to delete request" 
+      res.status(error.status || 500).json({
+        error: error.message || "Failed to delete request"
       });
     }
   }
@@ -500,85 +320,20 @@ router.put(
   checkAuthenticated,
   authenticateRole(["student", "teacher"]),
   async (req, res) => {
-    const requestId = req.params.requestId;
-    const userId = req.user.id;
-    const { details, classId } = req.body;
-
     try {
-      // Check if request exists and belongs to user
-      const checkQuery = `
-        SELECT r.status, r.type_id, rt.type_name, rt.applicable_to
-        FROM Requests r
-        JOIN RequestTypes rt ON r.type_id = rt.type_id
-        WHERE r.request_id = @requestId 
-        AND r.user_id = @userId
-      `;
+      const requestId = req.params.requestId;
+      const userId = req.user.id;
+      const { details, classId } = req.body;
 
-      const request = await executeQuery(checkQuery, {
-        requestId: requestId,
-        userId: userId
-      });
-
-      if (!request || request.length === 0) {
-        return res.status(404).json({
-          error: "Request not found or you don't have permission to edit it"
-        });
-      }
-
-      // Only allow editing of pending requests
-      if (request[0].status !== 'pending') {
-        return res.status(400).json({
-          error: "Only pending requests can be edited"
-        });
-      }
-
-      // Update the request
-      const updateQuery = `
-        UPDATE Requests 
-        SET description = @details,
-            class_id = @classId,
-            updated_at = GETDATE()
-        WHERE request_id = @requestId 
-        AND user_id = @userId 
-        AND status = 'pending'
-      `;
-
-      await executeQuery(updateQuery, {
-        requestId: requestId,
-        userId: userId,
-        details: details,
-        classId: classId
-      });
-
-      // Update notification if class-related request
-      if (classId) {
-        const notifyQuery = `
-          UPDATE notifications
-          SET message = @message,
-              updated_at = GETDATE()
-          WHERE sender_id = @userId
-          AND EXISTS (
-            SELECT 1 FROM Requests 
-            WHERE request_id = @requestId
-            AND user_id = @userId
-          )
-        `;
-
-        await executeQuery(notifyQuery, {
-          message: `Updated ${request[0].type_name} request from ${req.user.username}`,
-          userId: userId,
-          requestId: requestId
-        });
-      }
+      await requestsService.editRequest(requestId, userId, details, classId, req.user.username);
 
       res.status(200).json({
         message: "Request updated successfully"
       });
-
     } catch (error) {
       console.error("Error updating request:", error);
-      res.status(500).json({
-        error: "Failed to update request"
+      res.status(error.status || 500).json({
+        error: error.message || "Failed to update request"
       });
     }
   }
@@ -615,120 +370,21 @@ router.put(
   checkAuthenticated,
   authenticateRole(["admin", "teacher"]),
   async (req, res) => {
-    const requestId = req.params.requestId;
-    const actionUserId = req.user.id;
-    const userRole = req.user.role;
-
     try {
-      // Get request details first with permission check
-      const checkQuery = `
-        SELECT r.*, rt.type_name, rt.applicable_to, u.username, u.role, u.id as requester_id,
-               s.id as student_id
-        FROM Requests r
-        JOIN RequestTypes rt ON r.type_id = rt.type_id
-        JOIN users u ON r.user_id = u.id
-        LEFT JOIN students s ON s.user_id = u.id
-        WHERE r.request_id = @requestId
-      `;
+      const requestId = req.params.requestId;
+      const actionUserId = req.user.id;
+      const userRole = req.user.role;
 
-      const [request] = await executeQuery(checkQuery, {
-        requestId: requestId
-      });
-
-      if (!request) {
-        return res.status(404).json({
-          error: "Request not found"
-        });
-      }
-
-      // Check permissions
-      if (userRole === 'teacher') {
-        // Teachers can only approve student requests
-        if (request.role !== 'student') {
-          return res.status(403).json({
-            error: "Teachers can only manage student requests"
-          });
-        }
-        // Check if the teacher is teaching the class related to the request
-        if (request.class_id) {
-          const teacherCheck = await executeQuery(`
-            SELECT 1
-            FROM teachers t
-            JOIN classes c ON t.id = c.teacher_id
-            WHERE t.user_id = @teacherId 
-            AND c.id = @classId
-          `, {
-            teacherId: actionUserId,
-            classId: request.class_id
-          });
-
-          if (!teacherCheck || teacherCheck.length === 0) {
-            return res.status(403).json({
-              error: "You can only manage requests from students in your classes"
-            });
-          }
-        } else {
-          return res.status(403).json({
-            error: "This request is not associated with any class"
-          });
-        }
-        // Teachers can both approve and reject student requests, no additional check needed here
-      }
-
-      // Both admin and teacher can toggle between approved and rejected
-      const newStatus = request.status === 'approved' ? 'rejected' : 'approved';
-
-      // Update request status
-      const updateQuery = `
-        UPDATE Requests 
-        SET status = @newStatus,
-            updated_at = GETDATE()
-        WHERE request_id = @requestId
-      `;
-
-      await executeQuery(updateQuery, {
-        requestId: requestId,
-        newStatus: newStatus
-      });
-
-      // Notify the request creator
-      const notifyQuery = `
-        INSERT INTO notifications (user_id, message, sender_id, sent_at, created_at, updated_at)
-        VALUES (@userId, @message, @actionUserId, GETDATE(), GETDATE(), GETDATE())
-      `;
-
-      await executeQuery(notifyQuery, {
-        userId: request.user_id,
-        message: `Your ${request.type_name} request has been ${newStatus} by ${userRole}`,
-        actionUserId: actionUserId
-      });
-
-      // If it's a teacher's request and it was approved, notify affected students
-      if (request.role === 'teacher' && newStatus === 'approved' && request.class_id) {
-        const notifyStudentsQuery = `
-          INSERT INTO notifications (user_id, message, sender_id, sent_at, created_at, updated_at)
-          SELECT s.user_id, @message, @actionUserId, GETDATE(), GETDATE(), GETDATE()
-          FROM students s
-          JOIN enrollments e ON s.id = e.student_id
-          WHERE e.class_id = @classId
-        `;
-
-        await executeQuery(notifyStudentsQuery, {
-          message: `${request.type_name} request from ${request.username} has been approved for your class`,
-          actionUserId: actionUserId,
-          classId: request.class_id
-        });
-      }
+      const result = await requestsService.toggleRequestStatus(requestId, actionUserId, userRole);
 
       res.status(200).json({
-        message: `Request ${newStatus} successfully`,
-        newStatus: newStatus
+        message: `Request ${result.newStatus} successfully`,
+        newStatus: result.newStatus
       });
-
     } catch (error) {
       console.error("Error toggling request status:", error);
-      res.status(500).json({
-        error: "Failed to update request status"
+      res.status(error.status || 500).json({
+        error: error.message || "Failed to update request status"
       });
     }
   }
