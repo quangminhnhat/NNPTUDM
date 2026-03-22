@@ -1,5 +1,4 @@
-const path = require("path");
-const sql = require("msnodesqlv8");
+const MaterialModel = require("../model/MaterialModel");
 
 class AdminTeacherUploadMaterialService {
   /**
@@ -17,31 +16,7 @@ class AdminTeacherUploadMaterialService {
         throw error;
       }
 
-      const insertQuery = `
-        INSERT INTO materials (course_id, file_name, file_path, uploaded_at)
-        VALUES (?, ?, ?, GETDATE())
-      `;
-
-      const values = [
-        courseId,
-        file.originalname,
-        path.join("uploads", file.filename),
-        file.mimetype,
-      ];
-
-      return new Promise((resolve, reject) => {
-        sql.query(connectionString, insertQuery, values, (err) => {
-          if (err) {
-            console.error("Insert material error:", err);
-            const error = new Error("Database insert error");
-            error.statusCode = 500;
-            reject(error);
-            return;
-          }
-          console.log("Material uploaded successfully.");
-          resolve({ success: true, message: "File uploaded and saved to database." });
-        });
-      });
+      return await MaterialModel.uploadMaterial(courseId, file);
     } catch (error) {
       console.error("Upload material error:", error);
       if (error.statusCode) {

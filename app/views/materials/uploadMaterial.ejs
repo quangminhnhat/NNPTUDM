@@ -213,7 +213,7 @@
     <script>
     async function loadCourses() {
       try {
-        const response = await fetch('/api/uploadservice');
+        const response = await fetch('/api/upload-material/courses');
         if (!response.ok) throw new Error('Failed to load courses');
         const data = await response.json();
         
