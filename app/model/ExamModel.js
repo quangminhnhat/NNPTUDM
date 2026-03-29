@@ -23,18 +23,14 @@ class ExamModel {
           e.duration_min,
           e.total_points,
           e.passing_points,
-          e.start_time,
-          e.end_time,
           e.shuffle_questions,
           e.shuffle_options,
           e.exam_code,
           e.created_at,
-          c.course_name,
           u.full_name as teacher_name,
           (SELECT COUNT(*) FROM Questions q WHERE q.exam_id = e.exam_id) as question_count,
           (SELECT COUNT(DISTINCT ea.classes_id) FROM ExamAssignments ea WHERE ea.exam_id = e.exam_id) as assigned_classes_count
         FROM Exams e
-        LEFT JOIN courses c ON e.course_id = c.id
         LEFT JOIN teachers t ON e.teachers_id = t.id
         LEFT JOIN users u ON t.user_id = u.id
         ORDER BY e.created_at DESC
@@ -48,17 +44,13 @@ class ExamModel {
           e.duration_min,
           e.total_points,
           e.passing_points,
-          e.start_time,
-          e.end_time,
           e.shuffle_questions,
           e.shuffle_options,
           e.exam_code,
           e.created_at,
-          c.course_name,
           (SELECT COUNT(*) FROM Questions q WHERE q.exam_id = e.exam_id) as question_count,
           (SELECT COUNT(DISTINCT ea.classes_id) FROM ExamAssignments ea WHERE ea.exam_id = e.exam_id) as assigned_classes_count
         FROM Exams e
-        LEFT JOIN courses c ON e.course_id = c.id
         JOIN teachers t ON e.teachers_id = t.id
         WHERE t.user_id = ${user.id}
         ORDER BY e.created_at DESC
@@ -71,10 +63,11 @@ class ExamModel {
             attempt_id,
             total_score,
             submitted_at,
+            status,
             COUNT(*) OVER (PARTITION BY assignment_id, student_id) as attempt_count,
             ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY started_at DESC) as rn
           FROM Attempts
-          WHERE submitted_at IS NOT NULL AND student_id = (
+          WHERE student_id = (
             SELECT id FROM students WHERE user_id = ${user.id}
           )
         )
@@ -85,28 +78,27 @@ class ExamModel {
           e.duration_min,
           e.total_points,
           e.passing_points,
-          e.start_time,
-          e.end_time,
           e.shuffle_questions,
           e.shuffle_options,
           e.exam_code,
           e.created_at,
           c.course_name,
+          u.full_name as teacher_name,
           CASE
-            WHEN a.submitted_at IS NOT NULL THEN 'Completed'
+            WHEN a.status = 'in_progress' THEN 'In Progress'
             WHEN ea.open_at <= GETDATE() AND ea.close_at >= GETDATE() AND
-                 (a.attempt_count IS NULL OR
-                  (ea.max_attempts IS NULL OR a.attempt_count < ea.max_attempts)) THEN 'Available'
+                 (a.attempt_count IS NULL OR a.attempt_count < ISNULL(ea.max_attempts, 2147483647)) THEN 'Available'
             WHEN ea.open_at > GETDATE() THEN 'Upcoming'
+            WHEN a.attempt_count >= ISNULL(ea.max_attempts, 0) THEN 'Completed'
             ELSE 'Expired'
           END as exam_status,
           CASE
-            WHEN a.submitted_at IS NOT NULL THEN 0
+            WHEN a.status = 'in_progress' THEN 0
             WHEN ea.open_at <= GETDATE() AND ea.close_at >= GETDATE() AND
-                 (a.attempt_count IS NULL OR
-                  (ea.max_attempts IS NULL OR a.attempt_count < ea.max_attempts)) THEN 1
+                 (a.attempt_count IS NULL OR a.attempt_count < ISNULL(ea.max_attempts, 2147483647)) THEN 1
             WHEN ea.open_at > GETDATE() THEN 2
-            ELSE 3
+            WHEN a.attempt_count >= ISNULL(ea.max_attempts, 0) THEN 3
+            ELSE 4
           END as status_order,
           a.total_score,
           ea.open_at,
@@ -118,9 +110,11 @@ class ExamModel {
           en.class_id,
           cls.class_name
         FROM Exams e
-        LEFT JOIN courses c ON e.course_id = c.id
         JOIN ExamAssignments ea ON e.exam_id = ea.exam_id
         JOIN classes cls ON ea.classes_id = cls.id
+        JOIN courses c ON cls.course_id = c.id
+        JOIN teachers t ON cls.teacher_id = t.id
+        JOIN users u ON t.user_id = u.id
         JOIN enrollments en ON cls.id = en.class_id AND en.student_id = (
           SELECT id FROM students WHERE user_id = ${user.id}
         )
@@ -148,12 +142,9 @@ class ExamModel {
   static async createExam(userId, data) {
     const {
       exam_title,
-      course_id,
       total_marks,
       passing_marks,
       duration_minutes,
-      start_time,
-      end_time,
       shuffle_questions,
       shuffle_options
     } = data;
@@ -171,11 +162,32 @@ class ExamModel {
 
     const teacherId = teachers[0].id;
 
+    // Generate exam code if not provided
+    let exam_code = data.exam_code;
+    if (!exam_code) {
+      // Find the highest existing exam code number and increment
+      const codeQuery = `
+        SELECT TOP 1 exam_code
+        FROM Exams
+        WHERE exam_code LIKE 'EXAM%'
+        ORDER BY CAST(SUBSTRING(exam_code, 5, LEN(exam_code) - 4) AS INT) DESC
+      `;
+      const existingCodes = await executeQuery(codeQuery);
+      let nextNumber = 1;
+
+      if (existingCodes && existingCodes.length > 0) {
+        const lastCode = existingCodes[0].exam_code;
+        const numberPart = lastCode.substring(4); // Remove 'EXAM' prefix
+        nextNumber = parseInt(numberPart) + 1;
+      }
+
+      exam_code = `EXAM${nextNumber.toString().padStart(3, '0')}`;
+    }
+
     const duplicateQuery = `
       SELECT * FROM Exams
       WHERE exam_title = '${exam_title}'
         AND teachers_id = ${teacherId}
-        AND course_id = ${course_id}
     `;
     const existing = await executeQuery(duplicateQuery);
     if (existing && existing.length > 0) {
@@ -185,34 +197,41 @@ class ExamModel {
     }
 
     const insertQuery = `
-      INSERT INTO Exams (exam_title, description, duration_min, total_points, passing_points, start_time, end_time, shuffle_questions, shuffle_options, course_id, teachers_id, exam_code, created_at)
+      INSERT INTO Exams (exam_title, description, duration_min, total_points, passing_points, shuffle_questions, shuffle_options, teachers_id, exam_code, created_at)
       VALUES (
         '${exam_title.replace(/'/g, "''")}',
         '${(data.description || '').replace(/'/g, "''")}',
         ${duration_minutes || 0},
         ${total_marks || 0},
         ${passing_marks || 'NULL'},
-        '${start_time}',
-        '${end_time}',
         ${shuffle_questions ? 1 : 0},
         ${shuffle_options ? 1 : 0},
-        ${course_id},
         ${teacherId},
-        '${(data.exam_code || '').replace(/'/g, "''")}',
+        '${exam_code.replace(/'/g, "''")}',
         GETDATE()
       )
     `;
 
     await executeQuery(insertQuery);
 
-    return { success: true, message: 'Exam created successfully' };
+    // Get the newly created exam ID
+    const examIdQuery = `
+      SELECT exam_id FROM Exams
+      WHERE exam_title = '${exam_title.replace(/'/g, "''")}'
+        AND teachers_id = ${teacherId}
+      ORDER BY created_at DESC
+    `;
+    const examResult = await executeQuery(examIdQuery);
+    const examId = examResult[0].exam_id;
+
+    return { success: true, message: 'Exam created successfully', examId };
   }
 
   /**
    * Import exams from Excel
    * @param {number} userId - User ID
    * @param {Buffer} workbookBuffer - Excel file buffer
-   * @returns {Promise<Object>} Success response
+   * @returns {Promise<Object>} Success response with examId
    */
   static async importExamsFromExcel(userId, workbookBuffer) {
     if (!workbookBuffer) {
@@ -233,65 +252,201 @@ class ExamModel {
     const teacherId = teachers[0].id;
 
     const workbook = xlsx.read(workbookBuffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const rows = xlsx.utils.sheet_to_json(sheet);
 
-    let insertedCount = 0;
-    for (const row of rows) {
-      try {
+    console.log('Available sheet names:', workbook.SheetNames);
+
+    // Process Exam sheet
+    let examId = null;
+    const examSheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('exam'));
+    if (examSheetName) {
+      const examSheet = workbook.Sheets[examSheetName];
+      const examRows = xlsx.utils.sheet_to_json(examSheet);
+
+      console.log('Exam rows:', examRows.length, examRows[0] ? Object.keys(examRows[0]) : 'No rows');
+
+      if (examRows.length > 0) {
+        const row = examRows[0]; // Take first exam only
         const examData = {
-          exam_title: row['Exam Title'],
-          description: row['Description'] || '',
-          course_id: row['Course ID'],
-          total_marks: row['Total Marks'] || 0,
-          passing_marks: row['Passing Marks'] || null,
-          duration_minutes: row['Duration (minutes)'] || 0,
-          start_time: row['Start Time'],
-          end_time: row['End Time'],
-          shuffle_questions: row['Shuffle Questions'] === 'Yes',
-          shuffle_options: row['Shuffle Options'] === 'Yes',
-          exam_code: row['Exam Code'] || ''
+          exam_title: row['exam_title'] || row['Exam Title'] || row['examTitle'] || row['title'] || row['Exam title'] || row['exam name'] || row['Exam Name'],
+          description: row['description'] || row['Description'] || row['desc'],
+          total_marks: row['total_marks'] || row['Total Marks'] || row['totalMarks'] || row['marks'] || row['Total marks'] || row['total points'] || row['Total Points'],
+          passing_marks: row['passing_marks'] || row['Passing Marks'] || row['passingMarks'] || row['passing'] || row['Passing marks'] || row['passing score'] || row['Passing Score'],
+          duration_minutes: row['duration_minutes'] || row['Duration Minutes'] || row['durationMinutes'] || row['duration'] || row['Duration minutes'] || row['time'] || row['Time']
         };
 
-        if (examData.exam_title && examData.course_id && examData.start_time && examData.end_time) {
-          const duplicateQuery = `
-            SELECT * FROM Exams
+        console.log('Parsed exam data:', examData);
+
+        if (examData.exam_title) {
+          // Generate exam code automatically
+          const codeQuery = `
+            SELECT TOP 1 exam_code
+            FROM Exams
+            WHERE exam_code LIKE 'EXAM%'
+            ORDER BY CAST(SUBSTRING(exam_code, 5, LEN(exam_code) - 4) AS INT) DESC
+          `;
+          const existingCodes = await executeQuery(codeQuery);
+          let nextNumber = 1;
+
+          if (existingCodes && existingCodes.length > 0) {
+            const lastCode = existingCodes[0].exam_code;
+            const numberPart = lastCode.substring(4);
+            nextNumber = parseInt(numberPart) + 1;
+          }
+
+          const exam_code = `EXAM${nextNumber.toString().padStart(3, '0')}`;
+
+          const insertQuery = `
+            INSERT INTO Exams (exam_title, description, duration_min, total_points, passing_points, shuffle_questions, shuffle_options, teachers_id, exam_code, created_at)
+            VALUES (
+              '${examData.exam_title.replace(/'/g, "''")}',
+              '${examData.description.replace(/'/g, "''")}',
+              ${examData.duration_minutes},
+              ${examData.total_marks},
+              ${examData.passing_marks || 'NULL'},
+              0, 0, ${teacherId}, '${exam_code}', GETDATE()
+            )
+          `;
+          await executeQuery(insertQuery);
+
+          // Get the created exam ID
+          const examIdQuery = `
+            SELECT exam_id FROM Exams
             WHERE exam_title = '${examData.exam_title.replace(/'/g, "''")}'
               AND teachers_id = ${teacherId}
-              AND course_id = ${examData.course_id}
+            ORDER BY created_at DESC
           `;
-          const existing = await executeQuery(duplicateQuery);
-
-          if (!existing || existing.length === 0) {
-            const insertQuery = `
-              INSERT INTO Exams (exam_title, description, duration_min, total_points, passing_points, start_time, end_time, shuffle_questions, shuffle_options, course_id, teachers_id, exam_code, created_at)
-              VALUES (
-                '${examData.exam_title.replace(/'/g, "''")}',
-                '${examData.description.replace(/'/g, "''")}',
-                ${examData.duration_minutes},
-                ${examData.total_marks},
-                ${examData.passing_marks || 'NULL'},
-                '${examData.start_time}',
-                '${examData.end_time}',
-                ${examData.shuffle_questions ? 1 : 0},
-                ${examData.shuffle_options ? 1 : 0},
-                ${examData.course_id},
-                ${teacherId},
-                '${examData.exam_code.replace(/'/g, "''")}',
-                GETDATE()
-              )
-            `;
-            await executeQuery(insertQuery);
-            insertedCount++;
-          }
+          const examResult = await executeQuery(examIdQuery);
+          examId = examResult[0].exam_id;
         }
-      } catch (rowError) {
-        console.error('Error processing row:', rowError);
       }
     }
 
-    return { success: true, message: `Imported ${insertedCount} exams` };
+    // Process Questions sheet if exam was created
+    let questionsInserted = 0;
+    const questionsSheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('question'));
+    if (examId && questionsSheetName) {
+      const questionsSheet = workbook.Sheets[questionsSheetName];
+      let questionRows = xlsx.utils.sheet_to_json(questionsSheet);
+
+      // If same sheet as exam, skip the first row (exam data)
+      if (questionsSheetName === examSheetName) {
+        questionRows = questionRows.slice(1);
+      }
+
+      console.log('Question rows after slice:', questionRows.length, questionRows[0] ? Object.keys(questionRows[0]) : 'No rows');
+
+      for (const row of questionRows) {
+        try {
+          const questionData = {
+            question_text: row['exam_title'] || row['question_text'] || row['Question Text'] || row['questionText'] || row['question'] || row['Question text'],
+            type_id: row['description'] || row['type_id'] || row['Type ID'] || row['typeId'] || row['type'] || 1, // Default to MCQ
+            points: row['duration_minutes'] || row['points'] || row['Points'] || 1,
+            difficulty: row['total_marks'] || row['difficulty'] || row['Difficulty'] || 2,
+            options: row['passing_marks'] || row['options'] || row['Options'],
+            correct_answer: row['__EMPTY'] || row['correct_answer'] || row['Correct Answer'] || row['correctAnswer'] || row['answer'] || row['Correct answer']
+          };
+
+          // Skip header rows
+          if (questionData.question_text === 'question_text' || questionData.question_text === 'Question Text') {
+            continue;
+          }
+
+          // Handle difficulty if it's a string
+          if (typeof questionData.difficulty === 'string') {
+            const diffMap = { 'easy': 1, 'medium': 2, 'hard': 3 };
+            questionData.difficulty = diffMap[questionData.difficulty.toLowerCase()] || 2;
+          }
+
+          // Handle options if it's JSON string
+          let parsedOptions = [];
+          let correctIndex = questionData.correct_answer;
+          let isCorrectIndexFromJSON = false;
+          if (typeof questionData.options === 'string' && questionData.options.startsWith('[')) {
+            try {
+              const optionObjects = JSON.parse(questionData.options);
+              parsedOptions = optionObjects.map(opt => opt.text);
+              correctIndex = optionObjects.findIndex(opt => opt.isCorrect);
+              isCorrectIndexFromJSON = true;
+            } catch (e) {
+              // If not JSON, treat as delimited string
+              parsedOptions = questionData.options.split(/\|\||\|/).map(opt => opt.trim());
+            }
+          } else if (questionData.options) {
+            parsedOptions = typeof questionData.options === 'string'
+              ? questionData.options.split(/\|\||\|/).map(opt => opt.trim())
+              : questionData.options;
+          }
+
+          // Update options and correct_answer
+          questionData.options = parsedOptions;
+          questionData.correct_answer = correctIndex;
+
+          console.log('Parsed question data:', questionData);
+
+          if (questionData.question_text) {
+            // Handle options: already parsed above
+            let options = questionData.options;
+            if (!Array.isArray(options)) {
+              options = [];
+            }
+
+            // Handle correct_answer: convert letter to index if needed
+            let correctIndex = questionData.correct_answer;
+            if (isCorrectIndexFromJSON) {
+              // Already 0-based from JSON
+            } else if (typeof correctIndex === 'string' && correctIndex.length === 1) {
+              correctIndex = correctIndex.toUpperCase().charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+            } else if (typeof correctIndex === 'string' && options.length > 0) {
+              // Assume it's the option text
+              correctIndex = options.indexOf(correctIndex);
+              if (correctIndex === -1) correctIndex = 0; // Default to first if not found
+            } else if (typeof correctIndex === 'number') {
+              correctIndex = correctIndex - 1; // 1-based to 0-based
+            }
+
+            // Insert question
+            const questionInsertQuery = `
+              INSERT INTO Questions (exam_id, type_id, points, body_text, difficulty, created_at)
+              VALUES (${examId}, ${questionData.type_id}, ${questionData.points}, '${questionData.question_text.replace(/'/g, "''")}', ${questionData.difficulty}, GETDATE())
+            `;
+            await executeQuery(questionInsertQuery);
+
+            // Get the inserted question ID
+            const questionIdQuery = `SELECT TOP 1 question_id FROM Questions WHERE exam_id = ${examId} ORDER BY created_at DESC`;
+            const questionResult = await executeQuery(questionIdQuery);
+            const questionId = questionResult[0].question_id;
+
+            // Insert MCQ options if it's an MCQ question and options exist
+            if (questionData.type_id == 1 && options.length > 0) {
+              for (let i = 0; i < options.length; i++) {
+                const isCorrect = i === correctIndex;
+                const optionInsertQuery = `
+                  INSERT INTO MCQOptions (question_id, option_text, is_correct)
+                  VALUES (${questionId}, '${options[i].replace(/'/g, "''")}', ${isCorrect ? 1 : 0})
+                `;
+                await executeQuery(optionInsertQuery);
+              }
+            }
+
+            questionsInserted++;
+          }
+        } catch (rowError) {
+          console.error('Error processing question row:', rowError);
+        }
+      }
+    }
+
+    if (!examId) {
+      const error = new Error(`No valid exam data found in Excel file. Available sheets: ${workbook.SheetNames.join(', ')}`);
+      error.status = 400;
+      throw error;
+    }
+
+    return {
+      success: true,
+      message: `Imported exam with ${questionsInserted} questions`,
+      examId: examId
+    };
   }
 
   /**
@@ -463,13 +618,21 @@ class ExamModel {
     const { question_text, type_id, points, difficulty } = data;
 
     if (type_id === '1' || type_id === 1) {
-      return await createMCQQuestion(examId, userId, data, files);
+      return await createMCQQuestion(examId, data, files);
     }
 
+    // Validate question text
+    if (!question_text || question_text.trim() === '') {
+      const error = new Error('Question text is required');
+      error.status = 400;
+      throw error;
+    }
+
+    const pointsValue = points || 1;
     const questionQuery = `
       INSERT INTO Questions (exam_id, type_id, points, body_text, difficulty, created_at)
       OUTPUT INSERTED.question_id
-      VALUES (${examId === 'bank' ? 'NULL' : examId}, ${type_id}, ${points}, '${(question_text || '').replace(/'/g, "''")}', ${difficulty || 'NULL'}, GETDATE())
+      VALUES (${examId === 'bank' ? 'NULL' : examId}, ${type_id}, ${pointsValue}, '${(question_text || '').replace(/'/g, "''")}', ${difficulty || 'NULL'}, GETDATE())
     `;
     const question = await executeQuery(questionQuery);
     const questionId = question[0].question_id;
@@ -607,7 +770,7 @@ class ExamModel {
     }
 
     if (type_id == 1 || question[0].type_id === 1) {
-      return await editMCQQuestion(questionId, userId, data, files);
+      return await editMCQQuestion(questionId, data, files);
     }
 
     const updateQuery = `
@@ -802,6 +965,19 @@ class ExamModel {
   static async assignExamToClass(examId, userId, data) {
     const { class_id, open_at, close_at, max_attempts } = data;
 
+    // Format dates to SQL Server compatible format (ensure seconds are present)
+    const formatDate = (dateStr) => {
+      if (!dateStr) return null;
+      // If format is 'YYYY-MM-DDTHH:mm', add ':00' for seconds
+      if (dateStr.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)) {
+        return dateStr + ':00';
+      }
+      return dateStr;
+    };
+
+    const formattedOpenAt = formatDate(open_at);
+    const formattedCloseAt = formatDate(close_at);
+
     const examQuery = `
       SELECT e.*, t.user_id as teacher_user_id
       FROM Exams e
@@ -852,7 +1028,7 @@ class ExamModel {
 
     const insertQuery = `
       INSERT INTO ExamAssignments (exam_id, classes_id, open_at, close_at, max_attempts, created_at)
-      VALUES (${examId}, ${class_id}, '${open_at}', '${close_at}', ${max_attempts || 1}, GETDATE())
+      VALUES (${examId}, ${class_id}, '${formattedOpenAt}', '${formattedCloseAt}', ${max_attempts || 1}, GETDATE())
     `;
     await executeQuery(insertQuery);
 
@@ -1094,17 +1270,139 @@ class ExamModel {
       throw error;
     }
 
-    const insertAttemptQuery = `
-      INSERT INTO Attempts (assignment_id, student_id, started_at, created_at)
-      OUTPUT INSERTED.attempt_id
-      VALUES (${assignmentId}, ${studentId}, GETDATE(), GETDATE())
+    // Reuse unfinished attempt if exists (prevent duplicate attempts when page reloads)
+    const openAttemptQuery = `
+      SELECT attempt_id FROM Attempts
+      WHERE assignment_id = ${assignmentId}
+      AND student_id = ${studentId}
+      AND submitted_at IS NULL
+      ORDER BY started_at DESC
     `;
-    const attempt = await executeQuery(insertAttemptQuery);
-    const attemptId = attempt[0].attempt_id;
+    const openAttempts = await executeQuery(openAttemptQuery);
+    let attemptId;
+    let isNewAttempt = false;
+
+    if (openAttempts && openAttempts.length > 0) {
+      attemptId = openAttempts[0].attempt_id;
+    } else {
+      const nextAttemptNo = attemptCount + 1;
+      const insertAttemptQuery = `
+        INSERT INTO Attempts (assignment_id, student_id, attempt_no, started_at)
+        OUTPUT INSERTED.attempt_id
+        VALUES (${assignmentId}, ${studentId}, ${nextAttemptNo}, GETDATE())
+      `;
+      const attempt = await executeQuery(insertAttemptQuery);
+      attemptId = attempt[0].attempt_id;
+      isNewAttempt = true;
+    }
+
+    if (isNewAttempt) {
+      const mcqQuestionsQuery = `
+        SELECT q.question_id
+        FROM Questions q
+        JOIN QuestionTypes qt ON q.type_id = qt.type_id
+        WHERE q.exam_id = ${assignment[0].exam_id}
+          AND qt.type_code = 'MCQ'
+      `;
+      const mcqQuestions = await executeQuery(mcqQuestionsQuery);
+
+      for (const question of mcqQuestions) {
+        const optionsQuery = `SELECT * FROM MCQOptions WHERE question_id = ${question.question_id}`;
+        let options = await executeQuery(optionsQuery);
+
+        if (assignment[0].shuffle_options) {
+          options.sort(() => Math.random() - 0.5);
+        }
+
+        for (let i = 0; i < options.length; i++) {
+          const opt = options[i];
+          await executeQuery(`
+            INSERT INTO OptionInstances (
+              attempt_id,
+              question_id,
+              option_id,
+              display_order,
+              display_label,
+              option_text_snapshot,
+              is_correct_snapshot
+            )
+            VALUES (
+              ${attemptId},
+              ${question.question_id},
+              ${opt.option_id},
+              ${i + 1},
+              '${String.fromCharCode(65 + i)}',
+              N'${(opt.option_text || '').replace(/'/g, "''")}',
+              ${opt.is_correct ? 1 : 0}
+            )
+          `);
+        }
+      }
+    } else {
+      // Check if OptionInstances exist for this attempt, create if missing
+      const existingOptionInstancesQuery = `
+        SELECT COUNT(*) as count
+        FROM OptionInstances
+        WHERE attempt_id = ${attemptId}
+      `;
+      const existingCount = await executeQuery(existingOptionInstancesQuery);
+
+      if (existingCount[0].count === 0) {
+        const mcqQuestionsQuery = `
+          SELECT q.question_id
+          FROM Questions q
+          JOIN QuestionTypes qt ON q.type_id = qt.type_id
+          WHERE q.exam_id = ${assignment[0].exam_id}
+            AND qt.type_code = 'MCQ'
+        `;
+        const mcqQuestions = await executeQuery(mcqQuestionsQuery);
+
+        for (const question of mcqQuestions) {
+          const optionsQuery = `SELECT * FROM MCQOptions WHERE question_id = ${question.question_id}`;
+          let options = await executeQuery(optionsQuery);
+
+          if (assignment[0].shuffle_options) {
+            options.sort(() => Math.random() - 0.5);
+          }
+
+          for (let i = 0; i < options.length; i++) {
+            const opt = options[i];
+            await executeQuery(`
+              INSERT INTO OptionInstances (
+                attempt_id,
+                question_id,
+                option_id,
+                display_order,
+                display_label,
+                option_text_snapshot,
+                is_correct_snapshot
+              )
+              VALUES (
+                ${attemptId},
+                ${question.question_id},
+                ${opt.option_id},
+                ${i + 1},
+                '${String.fromCharCode(65 + i)}',
+                N'${(opt.option_text || '').replace(/'/g, "''")}',
+                ${opt.is_correct ? 1 : 0}
+              )
+            `);
+          }
+        }
+      }
+    }
 
     const questionsQuery = `
-      SELECT q.question_id, q.body_text, q.points, q.difficulty, qt.type_name,
-             (SELECT JSON_QUERY((SELECT mo.* FROM MCQOptions mo WHERE mo.question_id = q.question_id FOR JSON PATH))) as options,
+      SELECT q.question_id, q.type_id, q.body_text, q.points, q.difficulty, qt.type_name, qt.type_code,
+             (SELECT JSON_QUERY((
+               SELECT mo.option_id, mo.option_text,
+                      oi.option_instance_id, oi.display_label, oi.option_text_snapshot, oi.is_correct_snapshot
+               FROM MCQOptions mo
+               LEFT JOIN OptionInstances oi ON mo.option_id = oi.option_id AND oi.attempt_id = ${attemptId}
+               WHERE mo.question_id = q.question_id
+               ORDER BY oi.display_order
+               FOR JSON PATH
+             ))) as options,
              (SELECT JSON_QUERY((SELECT qm.* FROM QuestionMedia qm WHERE qm.question_id = q.question_id FOR JSON PATH))) as media
       FROM Questions q
       JOIN QuestionTypes qt ON q.type_id = qt.type_id
@@ -1113,24 +1411,35 @@ class ExamModel {
     `;
     const questions = await executeQuery(questionsQuery);
 
-    // Shuffle options if required
-    if (assignment[0].shuffle_options) {
-      questions.forEach(question => {
-        if (question.options) {
-          const options = JSON.parse(question.options);
-          // Shuffle options array
-          for (let i = options.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [options[i], options[j]] = [options[j], options[i]];
-          }
-          question.options = JSON.stringify(options);
+    const normalizeQuestionData = (question) => {
+      if (question.options && typeof question.options === 'string') {
+        try {
+          question.options = JSON.parse(question.options);
+        } catch {
+          question.options = [];
         }
-      });
-    }
+      } else if (!question.options) {
+        question.options = [];
+      }
+
+      if (question.media && typeof question.media === 'string') {
+        try {
+          question.media = JSON.parse(question.media);
+        } catch {
+          question.media = [];
+        }
+      } else if (!question.media) {
+        question.media = [];
+      }
+
+      return question;
+    };
+
+    questions.forEach(normalizeQuestionData);
 
     return {
-      attemptId,
-      assignment: assignment[0],
+      exam: assignment[0],
+      attempt: { attempt_id: attemptId },
       questions
     };
   }
@@ -1173,19 +1482,19 @@ class ExamModel {
 
     // Insert responses
     for (const [questionId, responseData] of Object.entries(responses)) {
-      let responseText = '';
-      let selectedOptionId = null;
+      let essayText = null;
+      let chosenOptionInstanceId = null;
 
       if (typeof responseData === 'string') {
-        responseText = responseData;
+        essayText = responseData;
       } else if (typeof responseData === 'object') {
-        responseText = responseData.text || '';
-        selectedOptionId = responseData.selectedOption || null;
+        essayText = responseData.text || null;
+        chosenOptionInstanceId = responseData.selectedOptionId || null;
       }
 
       const insertResponseQuery = `
-        INSERT INTO Responses (attempt_id, question_id, response_text, selected_option_id, created_at)
-        VALUES (${attemptId}, ${questionId}, '${responseText.replace(/'/g, "''")}', ${selectedOptionId || 'NULL'}, GETDATE())
+        INSERT INTO Responses (attempt_id, question_id, chosen_option_instance_id, essay_text, answered_at)
+        VALUES (${attemptId}, ${questionId}, ${chosenOptionInstanceId || 'NULL'}, ${essayText !== null ? "'" + essayText.replace(/'/g, "''") + "'" : 'NULL'}, GETDATE())
       `;
       await executeQuery(insertResponseQuery);
     }
@@ -1218,15 +1527,43 @@ class ExamModel {
       }
     }
 
-    // Update attempt as submitted
+    // Auto-grade MCQ responses and mark grading status
+    const scoreRowsQuery = `
+      SELECT r.response_id, r.question_id, r.chosen_option_instance_id, q.points,
+             qt.type_code, oi.is_correct_snapshot, oi.option_id, oi.question_id as oi_question_id
+      FROM Responses r
+      JOIN Questions q ON r.question_id = q.question_id
+      JOIN QuestionTypes qt ON q.type_id = qt.type_id
+      LEFT JOIN OptionInstances oi ON r.chosen_option_instance_id = oi.option_instance_id
+      WHERE r.attempt_id = ${attemptId}
+    `;
+    const scoreRows = await executeQuery(scoreRowsQuery);
+
+    let autoScore = 0;
+    let hasEssay = false;
+
+    for (const row of scoreRows) {
+      if (row.type_code === 'ESSAY') {
+        hasEssay = true;
+        continue;
+      }
+      if (row.type_code === 'MCQ' && row.chosen_option_instance_id && row.is_correct_snapshot == 1) {
+        autoScore += Number(row.points || 0);
+      }
+      // MCQ unanswered gives 0, but still considered automatically graded as long as there are no essay questions
+    }
+
+    const status = hasEssay ? 'submitted' : 'graded';
+    const totalScore = autoScore;
+
     const updateAttemptQuery = `
       UPDATE Attempts
-      SET submitted_at = GETDATE()
+      SET submitted_at = GETDATE(), auto_score = ${autoScore}, manual_score = 0, total_score = ${totalScore}, status = '${status}'
       WHERE attempt_id = ${attemptId}
     `;
     await executeQuery(updateAttemptQuery);
 
-    return { success: true, message: 'Exam submitted successfully' };
+    return { success: true, message: 'Exam submitted successfully', autoScore, totalScore, status };
   }
 
   /**
@@ -1249,12 +1586,11 @@ class ExamModel {
 
     const assignmentQuery = `
       SELECT ea.*, e.exam_title, e.description, e.duration_min, e.total_points,
-             e.start_time, e.end_time, e.shuffle_questions, e.shuffle_options,
              c.course_name, cls.class_name
       FROM ExamAssignments ea
       JOIN Exams e ON ea.exam_id = e.exam_id
-      JOIN courses c ON e.course_id = c.id
       JOIN classes cls ON ea.classes_id = cls.id
+      JOIN courses c ON cls.course_id = c.id
       WHERE ea.assignment_id = ${assignmentId}
       AND ea.open_at <= GETDATE()
       AND ea.close_at >= GETDATE()
@@ -1294,17 +1630,42 @@ class ExamModel {
     `;
     const questions = await executeQuery(questionsQuery);
 
+    const normalizeQuestionData = (question) => {
+      if (question.options && typeof question.options === 'string') {
+        try {
+          question.options = JSON.parse(question.options);
+        } catch {
+          question.options = [];
+        }
+      } else if (!question.options) {
+        question.options = [];
+      }
+
+      if (question.media && typeof question.media === 'string') {
+        try {
+          question.media = JSON.parse(question.media);
+        } catch {
+          question.media = [];
+        }
+      } else if (!question.media) {
+        question.media = [];
+      }
+
+      return question;
+    };
+
+    questions.forEach(normalizeQuestionData);
+
     // Shuffle options if required
     if (assignment[0].shuffle_options) {
       questions.forEach(question => {
-        if (question.options) {
-          const options = JSON.parse(question.options);
-          // Shuffle options array
+        if (Array.isArray(question.options) && question.options.length > 0) {
+          const options = [...question.options];
           for (let i = options.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [options[i], options[j]] = [options[j], options[i]];
           }
-          question.options = JSON.stringify(options);
+          question.options = options;
         }
       });
     }

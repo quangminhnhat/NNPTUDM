@@ -37,7 +37,7 @@ const router = express.Router();
  */
 router.get("/notifications", checkAuthenticated, async (req, res) => {
   try {
-    const data = await notificationsService.getAllNotifications(req.user.id, req.user.role);
+    const data = await notificationsService.getNotifications(req.user.id, req.user.role);
 
     res.json({
       user: req.user,

@@ -129,6 +129,7 @@
 
     <form id="questionForm" enctype="multipart/form-data">
         <input type="hidden" id="questionId" name="questionId">
+        <input type="hidden" id="examId" name="examId">
         <input type="hidden" id="typeId" name="typeId">
 
         <div class="modern-form-group">
@@ -201,6 +202,9 @@ async function loadQuestionData() {
     if (!response.ok) throw new Error('Failed to load question');
     const data = await response.json();
     const question = data.question;
+    
+    // Store examId for later use in redirect
+    document.getElementById('examId').value = data.examId || '';
     
     document.getElementById('questionText').value = question.body_text || '';
     document.getElementById('points').value = question.points || 1;
@@ -360,8 +364,9 @@ questionForm.addEventListener('submit', async (e) => {
             body: formData,
         });
         const data = await response.json();
-        if (data.success) {
-            window.location.href = `/exams/${data.examId}/edit`;
+        const examId = document.getElementById('examId').value;
+        if (data.success && examId) {
+            window.location.href = `/exams/${examId}/edit`;
         } else {
             alert(data.message || 'Error updating question');
         }

@@ -1,4 +1,5 @@
 const CourseModel = require("../model/CourseModel");
+const executeQuery = require("./executeQueryservice");
 
 async function getCourseDetail(courseId) {
   return await CourseModel.getCourseDetail(courseId);
@@ -33,12 +34,19 @@ async function updateCourse(courseId, data, file) {
 }
 
 async function getAvailableCourses(userId) {
-  return await CourseModel.getAvailableCourses(userId);
+  const courses = await CourseModel.getAvailableCourses(userId);
+
+  const studentQuery = "SELECT * FROM students WHERE user_id = ?";
+  const studentResult = await executeQuery(studentQuery, [userId]);
+
+  return {
+    courses,
+    student: studentResult.length > 0 ? studentResult[0] : null
+  };
 }
 
 async function enrollCourse(userId, class_id) {
   // This function involves multiple models - keep in service for now
-  const executeQuery = require("./executeQueryservice");
   const EnrollmentModel = require("../model/EnrollmentModel");
 
   // Get student ID from user ID
@@ -95,14 +103,12 @@ async function enrollCourse(userId, class_id) {
 }
 
 async function getMyCourses(user) {
-  const executeQuery = require("./executeQueryservice");
-
   // Get student ID from user ID
   const studentQuery = "SELECT id FROM students WHERE user_id = ?";
   const studentResult = await executeQuery(studentQuery, [user.id]);
 
   if (!studentResult.length) {
-    return { courses: [] };
+    return [];
   }
 
   const studentId = studentResult[0].id;
@@ -113,15 +119,22 @@ async function getMyCourses(user) {
       c.course_name,
       c.description,
       c.tuition_fee,
+      c.start_date,
       CONVERT(varchar(10), c.start_date, 23) as formatted_start_date,
       CONVERT(varchar(10), c.end_date, 23) as formatted_end_date,
       c.image_path,
       cls.class_name,
       cls.id as class_id,
+      CONVERT(varchar(5), cls.start_time, 108) as class_start_time,
+      CONVERT(varchar(5), cls.end_time, 108) as class_end_time,
+      cls.weekly_schedule,
       e.enrollment_date,
       e.payment_status,
       e.payment_date,
-      u.full_name as teacher_name
+      u.full_name as teacher_name,
+      u.email as teacher_email,
+      u.phone_number as teacher_phone,
+      u.profile_pic as teacher_avatar
     FROM enrollments e
     JOIN classes cls ON e.class_id = cls.id
     JOIN courses c ON cls.course_id = c.id
@@ -153,14 +166,20 @@ async function getMyCourses(user) {
     coursesMap.get(enrollment.id).classes.push({
       class_id: enrollment.class_id,
       class_name: enrollment.class_name,
+      class_start_time: enrollment.class_start_time,
+      class_end_time: enrollment.class_end_time,
+      weekly_schedule: enrollment.weekly_schedule,
       teacher_name: enrollment.teacher_name,
+      teacher_email: enrollment.teacher_email,
+      teacher_phone: enrollment.teacher_phone,
+      teacher_avatar: enrollment.teacher_avatar,
       enrollment_date: enrollment.enrollment_date,
       payment_status: enrollment.payment_status,
       payment_date: enrollment.payment_date
     });
   });
 
-  return { courses: Array.from(coursesMap.values()) };
+  return Array.from(coursesMap.values());
 }
 
 module.exports = {

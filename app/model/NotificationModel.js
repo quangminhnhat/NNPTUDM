@@ -24,8 +24,10 @@ class NotificationModel {
     } else {
       query = `
         SELECT n.*,
+            receiver.full_name as receiver_name,
             sender.full_name as sender_name
         FROM notifications n
+        LEFT JOIN users receiver ON n.user_id = receiver.id
         LEFT JOIN users sender ON n.sender_id = sender.id
         WHERE n.user_id = ?
         ORDER BY n.created_at DESC
@@ -64,13 +66,7 @@ class NotificationModel {
           updated_at = GETDATE()
       WHERE id = ? AND user_id = ?
     `;
-    const result = await executeQuery(query, [notificationId, userId]);
-
-    if (result.rowsAffected && result.rowsAffected[0] === 0) {
-      const error = new Error("Notification not found or access denied");
-      error.status = 404;
-      throw error;
-    }
+    await executeQuery(query, [notificationId, userId]);
 
     return { success: true };
   }
@@ -81,13 +77,7 @@ class NotificationModel {
    * @returns {Promise<Object>} Success message
    */
   static async deleteNotification(notificationId) {
-    const result = await executeQuery("DELETE FROM notifications WHERE id = ?", [notificationId]);
-
-    if (result.rowsAffected && result.rowsAffected[0] === 0) {
-      const error = new Error("Notification not found");
-      error.status = 404;
-      throw error;
-    }
+    await executeQuery("DELETE FROM notifications WHERE id = ?", [notificationId]);
 
     return { message: "Notification deleted successfully" };
   }
@@ -169,13 +159,14 @@ class NotificationModel {
 
     const insertQuery = `
       INSERT INTO notifications (user_id, message, sender_id, created_at)
+      OUTPUT INSERTED.id
       VALUES (?, ?, ?, GETDATE())
     `;
 
     const result = await executeQuery(insertQuery, [user_id, message, sender_id]);
 
     return {
-      id: result.insertId || result.id,
+      id: result[0].id,
       ...notificationData,
       read: false,
       created_at: new Date()

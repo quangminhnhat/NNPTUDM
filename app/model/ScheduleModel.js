@@ -36,8 +36,8 @@ class ScheduleModel {
         tu.full_name as teacher_name
       FROM classes c
       INNER JOIN courses co ON c.course_id = co.id
-      INNER JOIN teachers t ON c.teacher_id = t.id
-      INNER JOIN users tu ON t.user_id = tu.id
+      LEFT JOIN teachers t ON c.teacher_id = t.id
+      LEFT JOIN users tu ON t.user_id = tu.id
       WHERE co.end_date >= GETDATE()
       ORDER BY co.start_date ASC, c.class_name
     `;
@@ -105,8 +105,8 @@ class ScheduleModel {
     FROM schedules s
     JOIN classes c ON s.class_id = c.id
     JOIN courses co ON c.course_id = co.id
-    JOIN teachers t ON c.teacher_id = t.id
-    JOIN users tu ON t.user_id = tu.id
+    LEFT JOIN teachers t ON c.teacher_id = t.id
+    LEFT JOIN users tu ON t.user_id = tu.id
     ORDER BY s.schedule_date DESC, s.start_time ASC
   `;
 
@@ -126,7 +126,14 @@ class ScheduleModel {
   static async createSchedule(class_id, schedule_date, start_time, end_time, day_of_week) {
     // Input validation
     if (!class_id || !schedule_date || !start_time || !end_time || !day_of_week) {
-      const error = new Error("Missing required fields");
+      const missing = [];
+      if (!class_id) missing.push("class_id");
+      if (!schedule_date) missing.push("schedule_date");
+      if (!start_time) missing.push("start_time");
+      if (!end_time) missing.push("end_time");
+      if (!day_of_week) missing.push("day_of_week");
+      
+      const error = new Error(`Missing required fields: ${missing.join(", ")}`);
       error.status = 400;
       throw error;
     }

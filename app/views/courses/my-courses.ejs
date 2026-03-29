@@ -215,7 +215,8 @@
           const userRole = data.user?.role || 'student';
           
           coursesList.innerHTML = courses.map(course => {
-            const scheduleArray = course.weekly_schedule ? course.weekly_schedule.split(',') : [];
+            const classInfo = (course.classes && course.classes[0]) || {};
+            const scheduleArray = classInfo.weekly_schedule ? classInfo.weekly_schedule.split(',') : [];
             const schedule = scheduleArray.map(day => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][day-1]).join(', ');
             
             return `
@@ -235,32 +236,33 @@
                     Fee: ${course.tuition_fee ? course.tuition_fee.toLocaleString('vi-VN') + ' VND' : 'Not set'}
                   </div>
                   ${userRole === 'student' ? `
-                    <div class="modern-payment-badge ${course.payment_status ? 'paid' : 'unpaid'}">
-                      ${course.payment_status ? 'Paid' : 'Unpaid'}
-                    </div>
+                    ${ (() => {
+                        const status = course.classes && course.classes.length ? course.classes[0].payment_status : 0;
+                        return `<div class="modern-payment-badge ${status ? 'paid' : 'unpaid'}">${status ? 'Paid' : 'Unpaid'}</div>`;
+                    })() }
                   ` : ''}
                 </div>
                 <div class="modern-course-details">
                   <div class="modern-detail-group">
                     <span class="modern-detail-label">Class Schedule</span>
                     <span class="modern-detail-value">
-                      ${course.class_name}<br>
-                      ${course.class_start_time} - ${course.class_end_time}<br>
-                      Weekly: ${schedule}
+                      ${classInfo.class_name || 'N/A'}<br>
+                      ${classInfo.class_start_time || 'N/A'} - ${classInfo.class_end_time || 'N/A'}<br>
+                      Weekly: ${schedule || 'N/A'}
                     </span>
                   </div>
                   ${userRole === 'student' ? `
                     <div class="modern-detail-group">
                       <span class="modern-detail-label">Teacher</span>
                       <span class="modern-detail-value modern-teacher-info">
-                        <img src="${course.teacher_avatar ? '/' + course.teacher_avatar.replace(/\\/g, '/') : '/images/default-avatar.png'}" 
-                             alt="${course.teacher_name}" 
+                        <img src="${classInfo.teacher_avatar ? '/' + classInfo.teacher_avatar.replace(/\\/g, '/') : '/images/default-avatar.png'}" 
+                             alt="${classInfo.teacher_name || 'Teacher'}" 
                              class="modern-teacher-avatar"
                              onerror="this.onerror=null;this.src='/images/default-avatar.png'">
                         <div>
-                          <strong>${course.teacher_name}</strong><br>
-                          Email: ${course.teacher_email}<br>
-                          Phone: ${course.teacher_phone}
+                          <strong>${classInfo.teacher_name || 'N/A'}</strong><br>
+                          Email: ${classInfo.teacher_email || 'N/A'}<br>
+                          Phone: ${classInfo.teacher_phone || 'N/A'}
                         </div>
                       </span>
                     </div>

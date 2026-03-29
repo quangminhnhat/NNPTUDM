@@ -10,6 +10,7 @@ const {
   getNewClassFormData,
   getClassStudents,
 } = require("../../service/classesService");
+const executeQuery = require("../../service/executeQueryservice");
 const router = express.Router();
 
 /**
@@ -42,7 +43,27 @@ router.get(
   async (req, res) => {
     try {
       const classes = await getAllClasses();
-      res.json({ classes, user: req.user });
+      let filteredClasses = classes;
+
+      // If examId is provided, filter out classes already assigned to this exam
+      if (req.query.examId) {
+        const examId = parseInt(req.query.examId);
+        if (!isNaN(examId)) {
+          // Get classes already assigned to this exam
+          const assignedClassesQuery = `
+            SELECT DISTINCT classes_id
+            FROM ExamAssignments
+            WHERE exam_id = ${examId}
+          `;
+          const assignedClassesResult = await executeQuery(assignedClassesQuery);
+          const assignedClassIds = assignedClassesResult.map(row => row.classes_id);
+
+          // Filter out assigned classes
+          filteredClasses = classes.filter(cls => !assignedClassIds.includes(cls.id));
+        }
+      }
+
+      res.json({ classes: filteredClasses, user: req.user });
     } catch (err) {
       console.error("Fetch classes error:", err);
       res.status(500).json({ error: "Error loading classes" });

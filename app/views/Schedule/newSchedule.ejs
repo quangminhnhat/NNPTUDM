@@ -363,16 +363,20 @@
                     return;
                 }
                 
-                const formData = new FormData();
-                formData.append('class_id', document.getElementById('class_id').value);
-                formData.append('schedule_date', document.getElementById('schedule_date').value);
-                formData.append('day_of_week', document.getElementById('day_of_week').value);
-                formData.append('start_time', startTime);
-                formData.append('end_time', endTime);
+                const payload = {
+                    class_id: parseInt(document.getElementById('class_id').value),
+                    schedule_date: document.getElementById('schedule_date').value,
+                    day_of_week: document.getElementById('day_of_week').value,
+                    start_time: startTime,
+                    end_time: endTime
+                };
                 
                 const response = await AuthJWT.apiCall('/api/schedules', {
                     method: 'POST',
-                    body: formData
+                    body: JSON.stringify(payload),
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
                 });
                 
                 if (response.ok) {

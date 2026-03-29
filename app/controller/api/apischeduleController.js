@@ -287,9 +287,9 @@ router.get("/schedules/:id/edit", checkAuthenticated, authenticateRole("admin"),
  *       500:
  *         description: Server error
  */
-router.get("/schedule", checkAuthenticated, (req, res) => {
+router.get("/schedule", checkAuthenticated, async (req, res) => {
     try {
-      const data = schedulesService.getWeeklySchedule(req.user.id, req.user.role, req.query.weekStart);
+      const data = await schedulesService.getWeeklySchedule(req.user.id, req.user.role, req.query.weekStart);
 
       res.json({
         user: req.user,
@@ -373,81 +373,6 @@ router.get("/schedule", checkAuthenticated, (req, res) => {
       } catch (err) {
         console.error("Update schedule error:", err);
         res.status(err.status || 500).json({ error: err.message || "Failed to update schedule" });
-      }
-    }
-  );
-
-
-  /**
-   * @swagger
-   * /api/schedules/new:
-   *   get:
-   *     summary: Get data for new schedule form (Alternative)
-   *     tags: [Schedules]
-   *     security:
-   *       - bearerAuth: []
-   *     responses:
-   *       200:
-   *         description: Form data for new schedule
-   *       500:
-   *         description: Server error
-   */
-  router.get(
-    "/schedules/new",
-    checkAuthenticated,
-    authenticateRole("admin"),
-    async (req, res) => {
-      try {
-        const data = await schedulesService.getNewScheduleFormDataAlt();
-
-        res.json({
-          user: req.user,
-          ...data
-        });
-      } catch (err) {
-        console.error("Error loading schedule form:", err);
-        res.status(500).json({ error: "Error loading schedule form" });
-      }
-    }
-  );
-
-  /**
-   * @swagger
-   * /api/schedules/{id}:
-   *   delete:
-   *     summary: Delete a schedule (Duplicate)
-   *     tags: [Schedules]
-   *     security:
-   *       - bearerAuth: []
-   *     parameters:
-   *       - in: path
-   *         name: id
-   *         required: true
-   *         schema:
-   *           type: integer
-   *         description: Schedule ID
-   *     responses:
-   *       200:
-   *         description: Schedule deleted successfully
-   *       404:
-   *         description: Schedule not found
-   *       500:
-   *         description: Server error
-   */
-  router.delete(
-    "/schedules/:id",
-    checkAuthenticated,
-    authenticateRole("admin"),
-    async (req, res) => {
-      try {
-        const scheduleId = req.params.id;
-
-        const result = await schedulesService.deleteSchedule(scheduleId);
-
-        res.json(result);
-      } catch (err) {
-        console.error("Delete schedule error:", err);
-        res.status(err.status || 500).json({ error: err.message || "Failed to delete schedule" });
       }
     }
   );

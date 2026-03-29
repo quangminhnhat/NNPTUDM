@@ -111,8 +111,12 @@ WHERE username = 'bbbbbbbbbb');
 INSERT INTO classes
     (class_name, course_id, teacher_id, start_time, end_time, weekly_schedule)
 VALUES
-    (N'Math A1', 1, @teacher_id, '08:00', '10:00', '2,4,6');
--- Tue, Thu, Sat
+    (N'Math A1', 1, @teacher_id, '08:00', '10:00', '2,4,6'),
+    -- Tue, Thu, Sat
+    (N'English B1', 2, @teacher_id, '14:00', '16:00', '3,5'),
+    -- Wed, Fri
+    (N'Physics C1', 5, @teacher_id, '09:00', '11:00', '1,3,5');
+    -- Mon, Wed, Fri
 
 -- Insert schedules with random dates within the course duration
 DECLARE @course_start_date DATE;
@@ -164,6 +168,25 @@ VALUES
         (SELECT id
         FROM classes
         WHERE class_name = N'Math A1'),
+        GETDATE(), 1),
+    -- Also enroll students in other classes
+    ((SELECT id
+        FROM students
+        WHERE user_id = (SELECT id
+        FROM users
+        WHERE username = 'aaaaaaaaa')),
+        (SELECT id
+        FROM classes
+        WHERE class_name = N'English B1'),
+        GETDATE(), 1),
+    ((SELECT id
+        FROM students
+        WHERE user_id = (SELECT id
+        FROM users
+        WHERE username = 'student2')),
+        (SELECT id
+        FROM classes
+        WHERE class_name = N'Physics C1'),
         GETDATE(), 1);
 
 -- Insert notifications
@@ -598,7 +621,8 @@ FROM Exams
 WHERE exam_code = 'EXAM002');
 DECLARE @existing_class_id INT = (SELECT TOP 1
     id
-FROM classes);
+FROM classes
+WHERE class_name = N'English B1');
 
 INSERT INTO ExamAssignments
     (exam_id, classes_id, open_at, close_at, max_attempts)

@@ -17,11 +17,12 @@ const router = express.Router();
 
 router.get("/notifications", checkAuthenticated, async (req, res) => {
   try {
-    const notifications = await notificationsService.getNotifications(req.user.id);
+    const data = await notificationsService.getNotifications(req.user.id, req.user.role);
 
     res.render("notifications.ejs", {
       user: req.user,
-      notifications: notifications
+      notifications: data.notifications,
+      users: data.users
     });
   } catch (error) {
     console.error("Error fetching notifications:", error);
@@ -42,10 +43,10 @@ router.post("/notifications/:id/read", checkAuthenticated, async (req, res) => {
 router.delete("/notifications/:id", checkAuthenticated, async (req, res) => {
   try {
     await notificationsService.deleteNotification(req.params.id);
-    res.redirect("/notifications");
+    res.json({ success: true });
   } catch (error) {
     console.error("Error deleting notification:", error);
-    res.status(500).send("Failed to delete notification");
+    res.status(error.status || 500).json({ error: error.message || "Failed to delete notification" });
   }
 });
 

@@ -264,6 +264,7 @@ class UserModel {
 
     const insertUserQuery = `
       INSERT INTO users (username, password, role, full_name, email, phone_number, address, date_of_birth, created_at, updated_at)
+      OUTPUT INSERTED.id
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), GETDATE())
     `;
 
@@ -271,7 +272,7 @@ class UserModel {
       username, password, role, full_name, email, phone_number, address, date_of_birth
     ]);
 
-    const userId = userResult.insertId || userResult.id;
+    const userId = userResult[0].id;
 
     // Insert into role-specific table
     if (role === "student") {
@@ -350,7 +351,9 @@ class UserModel {
 
 // Static property for role mapping
 UserModel.mapRole = {
-  subject1: "student",
-  subject2: "teacher",
-  subject3: "admin",
+  "student": "student",
+  "teacher": "teacher",
+  "admin": "admin",
 };
+
+module.exports = UserModel;

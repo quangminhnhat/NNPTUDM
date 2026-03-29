@@ -249,6 +249,14 @@ class CourseModel {
       throw error;
     }
 
+    if (new Date(start_date) >= new Date(end_date)) {
+      const error = new Error("Start date must be before end date");
+      error.status = 400;
+      throw error;
+    }
+
+    const parsedTuitionFee = tuition_fee !== undefined && tuition_fee !== '' ? parseFloat(tuition_fee) : null;
+
     const image_path = file
       ? path.posix.join("uploads", "image", file.filename)
       : null;
@@ -272,7 +280,7 @@ class CourseModel {
       description,
       start_date,
       end_date,
-      tuition_fee || null,
+      parsedTuitionFee,
       image_path,
     ]);
 
@@ -318,6 +326,14 @@ class CourseModel {
     end_date = Array.isArray(end_date) ? end_date[0] : end_date;
     tuition_fee = Array.isArray(tuition_fee) ? tuition_fee[0] : tuition_fee;
 
+    if (new Date(start_date) >= new Date(end_date)) {
+      const error = new Error("Start date must be before end date");
+      error.status = 400;
+      throw error;
+    }
+
+    const parsedTuitionFee = tuition_fee !== undefined && tuition_fee !== '' ? parseFloat(tuition_fee) : null;
+
     const query = `
       UPDATE courses
       SET course_name = ?,
@@ -335,12 +351,12 @@ class CourseModel {
       description,
       start_date,
       end_date,
-      tuition_fee || null,
+      parsedTuitionFee,
       image_path,
       courseId,
     ]);
 
-    return { success: true, redirect: `/courses/${courseId}` };
+    return { success: true, redirect: "/courses" };
   }
 
   /**

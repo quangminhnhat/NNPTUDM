@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const xlsx = require('xlsx');
+const executeQuery = require('./executeQueryservice');
 const ExamModel = require('../model/ExamModel');
 const { createMCQQuestion, editMCQQuestion, deleteMCQQuestion } = require('./mcqQuestionHelperservice');
 

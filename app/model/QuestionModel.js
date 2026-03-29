@@ -27,15 +27,22 @@ class QuestionModel {
      */
     static async createMCQQuestion(examId, questionData, files) {
         try {
+            // Map question_text to body_text if needed
+            const questionText = questionData.question_text || questionData.body_text;
+            if (!questionText || questionText.trim() === '') {
+                throw new Error('Question text is required');
+            }
+            
             // Insert the base question
             const diffNum = this.mapDifficulty(questionData.difficulty);
             const difficultyValue = diffNum === null ? 'NULL' : diffNum;
-            const bodySql = this.sqlQuote(questionData.body_text);
+            const pointsValue = questionData.points || 1;
+            const bodySql = this.sqlQuote(questionText);
 
             const questionQuery = `
                 INSERT INTO Questions (exam_id, type_id, points, body_text, difficulty, created_at)
                 OUTPUT INSERTED.question_id
-                VALUES (${examId === 'bank' ? 'NULL' : examId}, 1, ${questionData.points}, ${bodySql}, ${difficultyValue}, GETDATE())
+                VALUES (${examId === 'bank' ? 'NULL' : examId}, 1, ${pointsValue}, ${bodySql}, ${difficultyValue}, GETDATE())
             `;
             const question = await executeQuery(questionQuery);
             const questionId = question[0].question_id;
@@ -88,14 +95,21 @@ class QuestionModel {
      */
     static async editMCQQuestion(questionId, questionData, files) {
         try {
+            // Map question_text to body_text if needed
+            const questionText = questionData.question_text || questionData.body_text;
+            if (!questionText || questionText.trim() === '') {
+                throw new Error('Question text is required');
+            }
+            
             // Update the base question
             const diffNum = this.mapDifficulty(questionData.difficulty);
             const difficultySql = diffNum === null ? 'NULL' : diffNum;
-            const bodySql = this.sqlQuote(questionData.body_text);
+            const pointsValue = questionData.points || 1;
+            const bodySql = this.sqlQuote(questionText);
 
             const updateQuestionQuery = `
                 UPDATE Questions
-                SET points = ${questionData.points},
+                SET points = ${pointsValue},
                     body_text = ${bodySql},
                     difficulty = ${difficultySql},
                     updated_at = GETDATE()

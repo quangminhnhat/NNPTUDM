@@ -247,10 +247,10 @@ function loadQuestions(questions) {
                 <div class="modern-form-check">
                   <input class="form-check-input" type="radio"
                     name="question_${q.question_id}" 
-                    id="option_${opt.option_id}"
-                    value="${opt.option_id}"
+                    id="option_${opt.option_instance_id}"
+                    value="${opt.option_instance_id}"
                     data-question-id="${q.question_id}">
-                  <label for="option_${opt.option_id}">
+                  <label for="option_${opt.option_instance_id}">
                     ${String.fromCharCode(65 + optIdx)}. ${opt.option_text}
                   </label>
                 </div>

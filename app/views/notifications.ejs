@@ -207,9 +207,7 @@
                                     <th style="width:80px; text-align: center;">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="notificationsTableBody">
-                                <tr><td colspan="7" style="text-align:center; padding:2rem;">Loading notifications...</td></tr>
-                            </tbody>
+                            <tbody id="notificationsTableBody"></tbody>
                         </table>
                     </div>
                 </div>
@@ -219,12 +217,6 @@
 
     <%- include('../views/shared/footer.ejs') %>
 
-    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-    <script src="/js/script.js"></script>
-    <script src="/js/main.js"></script>
-    <script type="text/javascript" src="https://code.jquery.com/jquery-3.7.0.js"></script>
-    <script type="text/javascript" src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
-    <script type="text/javascript" src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     <script src="/js/script.js"></script>
     <script src="/js/main.js"></script>
@@ -247,10 +239,15 @@
                     await loadUsers();
                 }
                 
+                // Always destroy existing table before changing content to avoid TN18 column count warning
+                if ($.fn.dataTable.isDataTable('#notificationsTable')) {
+                    $('#notificationsTable').DataTable().destroy();
+                }
+
                 // Load notifications table
                 const tbody = document.getElementById('notificationsTableBody');
                 if (!notifications || notifications.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem;">No notifications found</td></tr>';
+                    tbody.innerHTML = ''; // Let DataTables handle the "No data" message internally
                 } else {
                     tbody.innerHTML = notifications.map(notif => `
                         <tr>
@@ -275,11 +272,6 @@
                     `).join('');
                 }
                 
-                // Initialize DataTable
-                if ($.fn.dataTable.isDataTable('#notificationsTable')) {
-                    $('#notificationsTable').DataTable().destroy();
-                }
-                
                 $('#notificationsTable').DataTable({
                     responsive: true,
                     pageLength: 10,
@@ -290,6 +282,7 @@
                     dom: '<"top"lf>rt<"bottom"ip>',
                     language: {
                         search: "",
+                        emptyTable: "No notifications found",
                         searchPlaceholder: "Search notifications...",
                         lengthMenu: "Show _MENU_",
                         info: "Showing _START_ to _END_ of _TOTAL_ entries",
@@ -301,28 +294,10 @@
                         }
                     }
                 });
-                
-                // Add event listener for unread notifications
-                document.addEventListener('click', async function(e) {
-                    if (e.target.closest('.unread-notification')) {
-                        const badge = e.target.closest('.unread-notification');
-                        const notificationId = badge.dataset.id;
-                        try {
-                            const response = await fetch(`/api/notifications/${notificationId}/read`, { method: 'POST' });
-                            if (response.ok) {
-                                badge.classList.remove('bg-warning', 'unread-notification');
-                                badge.classList.add('bg-success');
-                                badge.textContent = 'Read';
-                                badge.style.cursor = 'default';
-                            }
-                        } catch (error) {
-                            console.error('Error marking notification as read:', error);
-                        }
-                    }
-                });
             } catch (error) {
                 console.error('Error loading notifications:', error);
-                document.getElementById('notificationsTableBody').innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Error loading notifications</td></tr>';
+                if ($.fn.dataTable.isDataTable('#notificationsTable')) $('#notificationsTable').DataTable().destroy();
+                document.getElementById('notificationsTableBody').innerHTML = '';
             }
         }
         
@@ -359,10 +334,13 @@
         document.getElementById('sendNotificationForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             try {
-                const formData = new FormData(this);
-                const response = await fetch('/api/notifications', {
+                const formData = new URLSearchParams(new FormData(this));
+                const response = await fetch('/notifications', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    }
                 });
                 if (response.ok) {
                     alert('Notification sent successfully');
@@ -377,7 +355,26 @@
             }
         });
         
-        $(document).ready(loadNotifications);
+        $(document).ready(function() {
+            loadNotifications();
+
+            // Use event delegation for unread notifications to avoid duplicate listeners on table reload
+            $('#notificationsTable').on('click', '.unread-notification', async function() {
+                const badge = $(this);
+                const notificationId = badge.data('id');
+                try {
+                    const response = await fetch(`/api/notifications/${notificationId}/read`, { method: 'POST' });
+                    if (response.ok) {
+                        badge.removeClass('bg-warning unread-notification')
+                             .addClass('bg-success')
+                             .text('Read')
+                             .css('cursor', 'default');
+                    }
+                } catch (error) {
+                    console.error('Error marking notification as read:', error);
+                }
+            });
+        });
     </script>
 </body>
 </html>

@@ -326,7 +326,7 @@ function deleteQuestion(questionId) {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('addQuestionLink').href = `/exams/new?examId=${examId}`;
+  document.getElementById('addQuestionLink').href = `/exams/${examId}/questions/new`;
   loadExamData();
   loadQuestions();
 });
